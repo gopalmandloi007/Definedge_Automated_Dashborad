@@ -1,6 +1,7 @@
 import streamlit as st
 import importlib
 from session_utils import get_active_io
+from debug_utils import debug_log  # Debugging ke liye (optional but recommended)
 
 st.set_page_config(page_title="Gopal Mandloi Dashboard", layout="wide")
 st.title("Gopal Mandloi Integrate Autobot (Automated Mode)")
@@ -34,6 +35,17 @@ if io is None:
     st.stop()
 
 st.success("Session active! All API calls are automated.")
+
+# (Optional) Debug log viewer in sidebar
+with st.sidebar.expander("Show Debug Log"):
+    if st.button("Refresh Debug Log"):
+        pass  # Button for user to refresh the log
+    try:
+        with open("debug.log") as f:
+            log_lines = f.readlines()[-50:]  # Show last 50 lines for brevity
+            st.text("".join(log_lines))
+    except Exception as e:
+        st.info("Debug log not available yet.")
 
 # Sidebar for all pages
 selected_page = st.sidebar.selectbox("Select Page", list(PAGES.keys()))
