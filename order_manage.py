@@ -207,5 +207,5 @@ def show():
                 st.success("Order cancelled!")
             st.rerun()
 
-if __name__ == "__main__":
+def app():
     show()
