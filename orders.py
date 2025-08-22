@@ -3,6 +3,12 @@ from utils import integrate_post
 import requests
 import pandas as pd
 
+def app():
+    st.header("Orders Dashboard")
+    # Yahan aapka pura orders ka Streamlit code aaye
+    # Example:
+    st.write("Orders content goes here")
+
 @st.cache_data
 def load_master_symbols():
     df = pd.read_csv("master.csv", sep="\t", header=None)
