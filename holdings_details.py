@@ -620,4 +620,4 @@ def show():
                 st.error(f"Error fetching chart data: {e}")
 
 if __name__ == "__main__":
-    show()
+    app()
