@@ -1,5 +1,5 @@
 import streamlit as st
-import importlib
+from session_utilis import get_active_io
 
 # Set page config ONCE at the top
 st.set_page_config(page_title="Gopal Mandloi_Dashboard", layout="wide")
@@ -24,16 +24,21 @@ PAGES = {
     "Websocket Help": "websocket_help",
 }
 
-st.title("Gopal Mandloi Integrate Dashboard")
 
-page = st.sidebar.radio("Go to", list(PAGES.keys()))
-modulename = PAGES[page]
+st.set_page_config(page_title="Gopal Mandloi_Autobot", layout="wide")
+st.title("Gopal Mandloi Integrate Autobot (Automated Mode)")
 
-try:
-    module = importlib.import_module(modulename)
-    if hasattr(module, "show") and callable(getattr(module, "show")):
-        module.show()
-    else:
+st.info("This app manages its own login/session lifecycle. No manual session keys needed!")
+
+io = get_active_io()
+if io is not None:
+    st.success("Session active! All API calls are automated.")
+    # Example usage
+    with st.expander("Show Holdings"):
+        holdings = io.holdings()
+        st.write(holdings)
+else:
+    st.error("Could not start a session. Check your API token/secret in secrets.toml.")
         st.error(f"Module `{modulename}` is missing a callable `show()` function.")
 except ModuleNotFoundError:
     st.error(f"Module `{modulename}.py` not found.")
