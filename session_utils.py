@@ -6,21 +6,14 @@ SESSION_KEY_NAME = "integrate_session"
 
 def is_session_valid():
     session = st.session_state.get(SESSION_KEY_NAME)
-    st.write("DEBUG [is_session_valid]: session =", session)
     if session is None:
-        st.write("DEBUG: session is None, returning False")
         return False
     now = time.time()
-    st.write("DEBUG: now =", now, "created_at =", session["created_at"], "age =", now - session["created_at"])
-    # Valid for 24 hours (86400 seconds)
-    valid = (now - session["created_at"]) < 86400
-    st.write("DEBUG: session valid?", valid)
-    return valid
+    return (now - session["created_at"]) < 86400
 
 def get_active_io():
-    st.write("DEBUG [get_active_io]: Called")
+    # Only call login_and_store if session is actually invalid!
     if is_session_valid():
-        st.write("DEBUG: Using cached session keys")
         sess = st.session_state[SESSION_KEY_NAME]
         conn = ConnectToIntegrate()
         conn.set_session_keys(sess["uid"], sess["actid"], sess["api_session_key"], sess["ws_session_key"])
@@ -28,19 +21,24 @@ def get_active_io():
         st.session_state["integrate_io"] = io
         return io
     else:
-        st.write("DEBUG: Session invalid or expired, starting login flow")
-        io = login_and_store()
-        return io
+        return login_and_store()
 
 def login_and_store():
-    st.write("DEBUG [login_and_store]: Called")
+    # >>> ADD THIS CHECK <<<
+    if is_session_valid():
+        st.success("Session already active!")
+        sess = st.session_state[SESSION_KEY_NAME]
+        conn = ConnectToIntegrate()
+        conn.set_session_keys(sess["uid"], sess["actid"], sess["api_session_key"], sess["ws_session_key"])
+        io = IntegrateOrders(conn)
+        st.session_state["integrate_io"] = io
+        return io
+
     api_token = st.secrets["INTEGRATE_API_TOKEN"]
     api_secret = st.secrets["INTEGRATE_API_SECRET"]
     conn = ConnectToIntegrate()
-    # Step 1: Request OTP
     step1_resp = conn.login_step1(api_token=api_token, api_secret=api_secret)
     st.info(step1_resp.get("message", "OTP sent to your registered mobile/email."))
-    # Step 2: Prompt user for OTP
     otp = st.text_input("Enter OTP sent to your mobile/email:", type="password")
     if st.button("Submit OTP"):
         try:
@@ -48,16 +46,13 @@ def login_and_store():
             st.success("Login successful!")
             uid, actid, api_session_key, ws_session_key = conn.get_session_keys()
             conn.set_session_keys(uid, actid, api_session_key, ws_session_key)
-            # Store session keys + timestamp
-            session_data = {
+            st.session_state[SESSION_KEY_NAME] = {
                 "uid": uid,
                 "actid": actid,
                 "api_session_key": api_session_key,
                 "ws_session_key": ws_session_key,
                 "created_at": time.time()
             }
-            st.session_state[SESSION_KEY_NAME] = session_data
-            st.write("DEBUG: Session stored in session_state:", session_data)
             io = IntegrateOrders(conn)
             st.session_state["integrate_io"] = io
             return io
