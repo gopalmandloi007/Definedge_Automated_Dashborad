@@ -385,13 +385,13 @@ def app():
 
     st.subheader("Risk Exposure (Size & Performance)")
     risk_df = df.copy()
-    risk_df['Risk Score'] = np.where(
-        risk_df['Open Risk'] > 0, 2,
-        np.where(risk_df['P&L'] < 0, 2, 1)
-    )
-    risk_df['Performance %'] = np.where(
-        risk_df['Invested'] > 0, risk_df['P&L'] / risk_df['Invested'] * 100, 0
-    ).round(1)
+risk_df['Risk Score'] = np.where(
+    risk_df['Open Risk'] > 0, 2,
+    np.where(risk_df['P&L'] < 0, 2, 1)
+)
+risk_df['Performance %'] = np.where(
+    risk_df['Invested'] > 0, risk_df['P&L'] / risk_df['Invested'] * 100, 0
+).round(1)
     fig_risk = px.bar(
         risk_df, x='Symbol', y='Current Value',
         color='Risk Score',
