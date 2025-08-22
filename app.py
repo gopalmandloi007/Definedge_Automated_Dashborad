@@ -18,7 +18,7 @@ PAGES = {
     "Limits": "limits",
     "Margin": "margin",
     "Quotes": "quotes",
-    "GTT order manage": "gtt",
+    "GTT order manage": "gtt_order_manage",
     "GTT Order Place": "gtt_oco_place",
     "Square Off": "squareoff",
     "Auto Order (SL & Targets)": "auto_order",
