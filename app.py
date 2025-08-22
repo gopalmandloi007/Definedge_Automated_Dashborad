@@ -39,8 +39,4 @@ if io is not None:
         st.write(holdings)
 else:
     st.error("Could not start a session. Check your API token/secret in secrets.toml.")
-        st.error(f"Module `{modulename}` is missing a callable `show()` function.")
-except ModuleNotFoundError:
-    st.error(f"Module `{modulename}.py` not found.")
-except Exception as e:
-    st.error(f"Error loading `{modulename}`: {e}")
+    # The following 'except' blocks should be associated with a 'try' block, 
