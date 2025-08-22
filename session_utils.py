@@ -25,10 +25,21 @@ def login_and_store():
     api_token = st.secrets["INTEGRATE_API_TOKEN"]
     api_secret = st.secrets["INTEGRATE_API_SECRET"]
     conn = ConnectToIntegrate()
-    # Do login to get session keys
-    conn.login(api_token=api_token, api_secret=api_secret)
-    uid, actid, api_session_key, ws_session_key = conn.get_session_keys()
-    conn.set_session_keys(uid, actid, api_session_key, ws_session_key)
-    io = IntegrateOrders(conn)
-    st.session_state["integrate_io"] = io
-    return io
+    # Step 1: Request OTP
+    step1_resp = conn.login_step1(api_token=api_token, api_secret=api_secret)
+    st.info(step1_resp.get("message", "OTP sent to your registered mobile/email."))
+    # Step 2: Prompt user for OTP
+    otp = st.text_input("Enter OTP sent to your mobile/email:", type="password")
+    if st.button("Submit OTP"):
+        try:
+            step2_resp = conn.login_step2(otp)
+            st.success("Login successful!")
+            uid, actid, api_session_key, ws_session_key = conn.get_session_keys()
+            conn.set_session_keys(uid, actid, api_session_key, ws_session_key)
+            io = IntegrateOrders(conn)
+            st.session_state["integrate_io"] = io
+            return io
+        except Exception as e:
+            st.error(f"Login failed: {e}")
+            return None
+    return None
