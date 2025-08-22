@@ -27,29 +27,31 @@ PAGES = {
     "Websocket Help": "websocket_help",
 }
 
+# --- SESSION MANAGEMENT ---
 io = get_active_io()
+if io is None:
+    # If not logged in, don't show any app UI except OTP/login.
+    st.stop()
 
-if io is not None:
-    st.success("Session active! All API calls are automated.")
+st.success("Session active! All API calls are automated.")
 
-    # Sidebar for all pages
-    selected_page = st.sidebar.selectbox("Select Page", list(PAGES.keys()))
+# Sidebar for all pages
+selected_page = st.sidebar.selectbox("Select Page", list(PAGES.keys()))
 
-    # Set io in session_state so every page can use it
-    st.session_state["integrate_io"] = io
+# Set io in session_state so every page can use it
+st.session_state["integrate_io"] = io
 
-    # Dynamic import and call app() of the selected module
-    try:
-        page_module = importlib.import_module(PAGES[selected_page])
-        if hasattr(page_module, "app"):
-            page_module.app()
-        else:
-            st.error(f"The page `{selected_page}` does not have an app() function.\n\n"
-                     "Please make sure your page file defines a function called app().\n"
-                     "Example:\n"
-                     "def app():\n    # your streamlit code here")
-    except ModuleNotFoundError as e:
-        st.error(f"Module `{PAGES[selected_page]}` not found. Please check your file/module names.\n\nError: {e}")
-
-else:
-    st.error("Could not start a session. Check your API token/secret in secrets.toml.")
+# Dynamic import and call app() of the selected module
+try:
+    page_module = importlib.import_module(PAGES[selected_page])
+    if hasattr(page_module, "app"):
+        page_module.app()
+    else:
+        st.error(
+            f"The page `{selected_page}` does not have an app() function.\n\n"
+            "Please make sure your page file defines a function called app().\n"
+            "Example:\n"
+            "def app():\n    # your streamlit code here"
+        )
+except ModuleNotFoundError as e:
+    st.error(f"Module `{PAGES[selected_page]}` not found. Please check your file/module names.\n\nError: {e}")
