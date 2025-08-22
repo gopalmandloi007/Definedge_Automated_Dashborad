@@ -3,12 +3,6 @@ from utils import integrate_post
 import requests
 import pandas as pd
 
-def app():
-    st.header("Orders Dashboard")
-    # Yahan aapka pura orders ka Streamlit code aaye
-    # Example:
-    st.write("Orders content goes here")
-
 @st.cache_data
 def load_master_symbols():
     df = pd.read_csv("master.csv", sep="\t", header=None)
@@ -76,20 +70,23 @@ def app():
     col1, col2, col3, col4 = st.columns([2,2,2,2], gap="large")
 
     with col1:
-        tradingsymbol = st.selectbox("Symbol", symbol_list, index=symbol_list.index(symbol_default) if symbol_default in symbol_list else 0, key="ts")
+        tradingsymbol = st.selectbox("Symbol", symbol_list, index=symbol_list.index(symbol_default) if symbol_default in symbol_list else 0, key="order_ts")
         # Find the row in master_df corresponding to the selected trading symbol
         selected_row = master_df[master_df["tradingsymbol"] == tradingsymbol].iloc[0]
         exchange_options = [selected_row["segment"]]
-        exchange = st.selectbox("Exch", exchange_options, index=0, key="exch")
-        price_type = st.selectbox("Type", ["LIMIT", "MARKET", "SL-LIMIT", "SL-MARKET"], key="pt")
+        exchange = st.selectbox("Exch", exchange_options, index=0, key="order_exch")
+        price_type = st.selectbox("Type", ["LIMIT", "MARKET", "SL-LIMIT", "SL-MARKET"], key="order_pt")
+
     with col2:
-        validity = st.selectbox("Validity", ["DAY", "IOC", "EOS"], key="val")
-        order_type = st.selectbox("Side", ["BUY", "SELL"], key="ot")
-        product_type = st.selectbox("Product", ["CNC", "INTRADAY", "NORMAL"], key="prod")
+        validity = st.selectbox("Validity", ["DAY", "IOC", "EOS"], key="order_val")
+        order_type = st.selectbox("Side", ["BUY", "SELL"], key="order_ot")
+        product_type = st.selectbox("Product", ["CNC", "INTRADAY", "NORMAL"], key="order_prod")
+
     with col3:
-        qty_or_amt = st.radio("Order By", ["Qty", "Amt"], horizontal=True, key="qty_or_amt")
+        qty_or_amt = st.radio("Order By", ["Qty", "Amt"], horizontal=True, key="order_qty_or_amt")
+
     with col4:
-        remarks = st.text_input("Remarks (optional)", key="rem")
+        remarks = st.text_input("Remarks (optional)", key="order_rem")
 
     api_session_key = st.secrets.get("integrate_api_session_key", "")
 
@@ -97,31 +94,31 @@ def app():
     if tradingsymbol and exchange:
         ltp = get_ltp(tradingsymbol, exchange, api_session_key)
 
-    price = st.number_input("Price", min_value=0.0, value=ltp if ltp > 0 else 0.0, step=0.05, key="pr", format="%.2f")
+    price = st.number_input("Price", min_value=0.0, value=ltp if ltp > 0 else 0.0, step=0.05, key="order_pr", format="%.2f")
 
     colQ, colA, colT, colD, colAMO = st.columns([2,2,2,2,2], gap="large")
 
     if qty_or_amt == "Amt":
         with colA:
-            amount = st.number_input("₹ Amt", min_value=0.0, step=100.0, key="amt", format="%.2f")
+            amount = st.number_input("₹ Amt", min_value=0.0, step=100.0, key="order_amt", format="%.2f")
         with colQ:
             qty_auto = int(amount // price) if (price > 0 and amount > 0) else 1
             st.caption(f"Auto-Qty at Price ₹{price:.2f}: {qty_auto}" if price > 0 and amount > 0 else "Auto-Qty: 1")
-            qty = st.number_input("Qty", min_value=1, value=qty_auto, step=1, key=f"qty_{amount}_{price}")
+            qty = st.number_input("Qty", min_value=1, value=qty_auto, step=1, key=f"order_qty_{amount}_{price}")
     else:
         with colQ:
-            qty = st.number_input("Qty", min_value=1, value=1, step=1, key="qty")
+            qty = st.number_input("Qty", min_value=1, value=1, step=1, key="order_qty")
         with colA:
             if ltp > 0:
                 st.caption(f"LTP: ₹{ltp:.2f}")
             amount = qty * price if price > 0 else 0.0
 
     with colT:
-        trigger_price = st.number_input("Trig Price", min_value=0.0, value=0.0, step=0.05, key="tr_pr", format="%.2f")
+        trigger_price = st.number_input("Trig Price", min_value=0.0, value=0.0, step=0.05, key="order_tr_pr", format="%.2f")
     with colD:
-        disclosed_quantity = st.number_input("Disc Qty", min_value=0, value=0, step=1, key="dis_qty")
+        disclosed_quantity = st.number_input("Disc Qty", min_value=0, value=0, step=1, key="order_dis_qty")
     with colAMO:
-        amo = st.checkbox("AMO?", key="amo")
+        amo = st.checkbox("AMO?", key="order_amo")
 
     st.markdown('</div>', unsafe_allow_html=True)
 
@@ -136,7 +133,7 @@ def app():
         )
         st.markdown('</div>', unsafe_allow_html=True)
 
-    if st.button("Place Order", use_container_width=True, type="primary"):
+    if st.button("Place Order", use_container_width=True, type="primary", key="order_place_btn"):
         # --- FIX: Set price_type & trigger_price logic for correct order ---
         data = {
             "tradingsymbol": tradingsymbol,
@@ -173,4 +170,4 @@ def app():
         st.success("Order submitted!")
         st.json(resp)
 
-    app()
+# Only ONE app() call — let the main Streamlit runner handle this
