@@ -1,7 +1,7 @@
 import streamlit as st
 from utils import integrate_post
 
-def show():
+def app():
     st.header("Place GTT / OCO Order")
 
     order_type = st.radio("Choose Order Type:", ["Single GTT", "OCO"], horizontal=True)
