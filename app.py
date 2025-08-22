@@ -19,7 +19,7 @@ PAGES = {
     "Margin": "margin",
     "Quotes": "quotes",
     "GTT order manage": "gtt",
-    "GTT Order Place": "gtt_oco_manage",
+    "GTT Order Place": "gtt_oco_place",
     "Square Off": "squareoff",
     "Auto Order (SL & Targets)": "auto_order",
     "Symbol Technical Details": "symbol_technical_details",
