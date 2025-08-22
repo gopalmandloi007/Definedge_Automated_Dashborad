@@ -1,25 +1,33 @@
 import streamlit as st
+import time
 from integrate import ConnectToIntegrate, IntegrateOrders
+
+SESSION_KEY_NAME = "integrate_session"
+
+def is_session_valid():
+    session = st.session_state.get(SESSION_KEY_NAME)
+    if session is None:
+        return False
+    now = time.time()
+    # Valid for 24 hours (86400 seconds)
+    return (now - session["created_at"]) < 86400
 
 def get_active_io():
     """
     Handles login and session key management automatically.
-    If session expires, will re-login and refresh keys.
+    If session expires (24hr), will re-login and refresh keys.
     """
-    if "integrate_io" in st.session_state:
-        io = st.session_state["integrate_io"]
-        # Check if session is still valid
-        test = io.holdings()
-        if (
-            isinstance(test, dict)
-            and str(test.get("status", "")).upper() in ["FAILED", "FAIL", "ERROR"]
-            and "session" in str(test.get("message", "")).lower()
-        ):
-            # Session expired, need to re-login
-            io = login_and_store()
+    if is_session_valid():
+        # Use cached session keys
+        sess = st.session_state[SESSION_KEY_NAME]
+        conn = ConnectToIntegrate()
+        conn.set_session_keys(sess["uid"], sess["actid"], sess["api_session_key"], sess["ws_session_key"])
+        io = IntegrateOrders(conn)
+        st.session_state["integrate_io"] = io
+        return io
     else:
         io = login_and_store()
-    return io
+        return io
 
 def login_and_store():
     api_token = st.secrets["INTEGRATE_API_TOKEN"]
@@ -36,6 +44,14 @@ def login_and_store():
             st.success("Login successful!")
             uid, actid, api_session_key, ws_session_key = conn.get_session_keys()
             conn.set_session_keys(uid, actid, api_session_key, ws_session_key)
+            # Store session keys + timestamp
+            st.session_state[SESSION_KEY_NAME] = {
+                "uid": uid,
+                "actid": actid,
+                "api_session_key": api_session_key,
+                "ws_session_key": ws_session_key,
+                "created_at": time.time()
+            }
             io = IntegrateOrders(conn)
             st.session_state["integrate_io"] = io
             return io
