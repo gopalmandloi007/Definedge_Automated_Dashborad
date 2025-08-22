@@ -8,9 +8,6 @@ from plotly.subplots import make_subplots
 import io
 import numpy as np
 
-def app():
-    st.header("Holdings")
-    st.write("Your holdings data will appear here.")
 # ========== Enhanced Chart Utils ==========
 @st.cache_data
 def load_master():
@@ -246,7 +243,7 @@ def minervini_sell_signals(df, lookback_days=15):
         signals['warnings'].append("⚠️ Heavy volume down day - Consider exiting position")
     return signals
 
-def show():
+def app():
     st.header("📊 Holdings Intelligence Dashboard")
     st.caption("Actionable insights for portfolio decisions - Hold, Add, Reduce, or Exit")
 
@@ -652,6 +649,3 @@ def show():
         """)
     except Exception as e:
         st.error(f"Error loading holdings: {e}")
-
-if __name__ == "__main__":
-    show()
