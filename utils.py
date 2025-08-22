@@ -5,10 +5,11 @@ def get_session_headers():
     session = st.session_state.get("integrate_session")
     if not session:
         return {}
-    return {"api_session_key": session["api_session_key"]}
+    # Docs ke hisaab se header "Authorization" hona chahiye!
+    return {"Authorization": session["api_session_key"]}
 
 def integrate_get(path):
-    base_url = "https://integrate.definedgesecurities.com/dart/v1"  # NEW BASE URL!
+    base_url = "https://integrate.definedgesecurities.com/dart/v1"
     headers = get_session_headers()
     url = base_url + path
     try:
@@ -28,7 +29,7 @@ def integrate_get(path):
         return {"status": "ERROR", "message": f"Unexpected error: {str(e)}"}
 
 def integrate_post(path, payload):
-    base_url = "https://integrate.definedgesecurities.com/dart/v1"  # NEW BASE URL!
+    base_url = "https://integrate.definedgesecurities.com/dart/v1"
     headers = get_session_headers()
     url = base_url + path
     try:
