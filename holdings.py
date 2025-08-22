@@ -8,6 +8,9 @@ from plotly.subplots import make_subplots
 import io
 import numpy as np
 
+def app():
+    st.header("Holdings")
+    st.write("Your holdings data will appear here.")
 # ========== Enhanced Chart Utils ==========
 @st.cache_data
 def load_master():
