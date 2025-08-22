@@ -29,7 +29,6 @@ def app():
                 index=symbol_list.index(symbol_default) if symbol_default in symbol_list else 0,
                 key="gtt_tradingsymbol"
             )
-            # Get exchange from master_df for selected symbol
             selected_row = master_df[master_df["tradingsymbol"] == tradingsymbol].iloc[0]
             exchange = st.selectbox("Exchange", [selected_row["segment"]], key="gtt_exchange")
         with col2:
