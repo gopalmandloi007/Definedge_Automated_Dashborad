@@ -8,12 +8,12 @@ def get_session_headers():
     return {"api_session_key": session["api_session_key"]}
 
 def integrate_get(path):
-    base_url = "https://api.definedgesecurities.com"  # Replace with actual base URL
+    base_url = "https://integrate.definedgesecurities.com/dart/v1"  # NEW BASE URL!
     headers = get_session_headers()
     url = base_url + path
     try:
         resp = requests.get(url, headers=headers, timeout=15)
-        resp.raise_for_status()  # Raise HTTPError for bad responses (4xx/5xx)
+        resp.raise_for_status()
         try:
             return resp.json()
         except Exception:
@@ -28,7 +28,7 @@ def integrate_get(path):
         return {"status": "ERROR", "message": f"Unexpected error: {str(e)}"}
 
 def integrate_post(path, payload):
-    base_url = "https://api.definedgesecurities.com"  # Replace with actual base URL
+    base_url = "https://integrate.definedgesecurities.com/dart/v1"  # NEW BASE URL!
     headers = get_session_headers()
     url = base_url + path
     try:
