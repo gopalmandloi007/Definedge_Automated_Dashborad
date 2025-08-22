@@ -1,7 +1,11 @@
+The page GTT Order Place does not have an app() function.
+
+Please make sure your page file defines a function called app(). Example: def app(): # your streamlit code here
+
 import streamlit as st
 from utils import integrate_post
 
-def app():
+def show():
     st.header("Place GTT / OCO Order")
 
     order_type = st.radio("Choose Order Type:", ["Single GTT", "OCO"], horizontal=True)
