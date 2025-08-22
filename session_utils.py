@@ -1,40 +1,34 @@
 import streamlit as st
 from integrate import ConnectToIntegrate, IntegrateOrders
 
-def ensure_active_session(conn):
-    """Uses session keys from secrets, does NOT login!"""
-    uid = st.secrets["INTEGRATE_UID"]
-    actid = st.secrets["INTEGRATE_ACTID"]
-    api_session_key = st.secrets["INTEGRATE_API_SESSION_KEY"]
-    ws_session_key = st.secrets["INTEGRATE_WS_SESSION_KEY"]
-    conn.set_session_keys(uid, actid, api_session_key, ws_session_key)
-    io = IntegrateOrders(conn)
-    test = io.holdings()
-    if (
-        isinstance(test, dict)
-        and str(test.get("status", "")).upper() in ["FAILED", "FAIL", "ERROR"]
-        and "session" in str(test.get("message", "")).lower()
-    ):
-        st.error("Session expired! Please generate a new session key from Colab and paste it in secrets.toml.")
-        return None
+def get_active_io():
+    """
+    Handles login and session key management automatically.
+    If session expires, will re-login and refresh keys.
+    """
+    if "integrate_io" in st.session_state:
+        io = st.session_state["integrate_io"]
+        # Check if session is still valid
+        test = io.holdings()
+        if (
+            isinstance(test, dict)
+            and str(test.get("status", "")).upper() in ["FAILED", "FAIL", "ERROR"]
+            and "session" in str(test.get("message", "")).lower()
+        ):
+            # Session expired, need to re-login
+            io = login_and_store()
+    else:
+        io = login_and_store()
     return io
 
-def show():
-    st.header("Login & Session Key (Manual Mode)")
-    try:
-        uid = st.secrets["INTEGRATE_UID"]
-        actid = st.secrets["INTEGRATE_ACTID"]
-        api_session_key = st.secrets["INTEGRATE_API_SESSION_KEY"]
-        ws_session_key = st.secrets["INTEGRATE_WS_SESSION_KEY"]
-    except Exception as e:
-        st.error("Missing session keys in secrets.toml: " + str(e))
-        return
-
+def login_and_store():
+    api_token = st.secrets["INTEGRATE_API_TOKEN"]
+    api_secret = st.secrets["INTEGRATE_API_SECRET"]
     conn = ConnectToIntegrate()
-    io = ensure_active_session(conn)
-    if io is None:
-        st.warning("Session expired. Generate new keys from Colab and update secrets.toml.")
-    else:
-        st.success("Session active!")
-        st.info(f"Current session key: {api_session_key[:8]}... (hidden for security)")
-        st.caption(f"Actid: {actid}")
+    # Do login to get session keys
+    conn.login(api_token=api_token, api_secret=api_secret)
+    uid, actid, api_session_key, ws_session_key = conn.get_session_keys()
+    conn.set_session_keys(uid, actid, api_session_key, ws_session_key)
+    io = IntegrateOrders(conn)
+    st.session_state["integrate_io"] = io
+    return io
