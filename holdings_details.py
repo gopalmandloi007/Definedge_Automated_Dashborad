@@ -9,6 +9,10 @@ import numpy as np
 import io
 from utils import integrate_get
 
+def app():
+    st.header("Holdings Details")
+    st.write
+
 def is_number(val):
     try:
         return isinstance(val, (int, float)) and not isinstance(val, bool)
