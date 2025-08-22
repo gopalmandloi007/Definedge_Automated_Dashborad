@@ -44,7 +44,7 @@ def get_ltp(tradingsymbol, exchange, api_session_key):
         pass
     return 0
 
-def show():
+def app():
     st.markdown("""
     <style>
     .stApp { width: 100vw; max-width: 100vw; margin: 0; padding: 0; }
@@ -173,5 +173,4 @@ def show():
         st.success("Order submitted!")
         st.json(resp)
 
-if __name__ == "__main__":
-    show()
+    app()
