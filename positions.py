@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 from utils import integrate_get
 
-def show():
+def app():
     st.header("=========== Positions Dashboard Pro ===========")
 
     # Fetch positions data
