@@ -39,11 +39,17 @@ if io is not None:
     st.session_state["integrate_io"] = io
 
     # Dynamic import and call app() of the selected module
-    page_module = importlib.import_module(PAGES[selected_page])
-    if hasattr(page_module, "app"):
-        page_module.app()
-    else:
-        st.error(f"The page `{selected_page}` does not have an app() function.")
+    try:
+        page_module = importlib.import_module(PAGES[selected_page])
+        if hasattr(page_module, "app"):
+            page_module.app()
+        else:
+            st.error(f"The page `{selected_page}` does not have an app() function.\n\n"
+                     "Please make sure your page file defines a function called app().\n"
+                     "Example:\n"
+                     "def app():\n    # your streamlit code here")
+    except ModuleNotFoundError as e:
+        st.error(f"Module `{PAGES[selected_page]}` not found. Please check your file/module names.\n\nError: {e}")
 
 else:
     st.error("Could not start a session. Check your API token/secret in secrets.toml.")
