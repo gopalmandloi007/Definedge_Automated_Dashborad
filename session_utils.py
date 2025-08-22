@@ -6,19 +6,21 @@ SESSION_KEY_NAME = "integrate_session"
 
 def is_session_valid():
     session = st.session_state.get(SESSION_KEY_NAME)
+    st.write("DEBUG [is_session_valid]: session =", session)
     if session is None:
+        st.write("DEBUG: session is None, returning False")
         return False
     now = time.time()
+    st.write("DEBUG: now =", now, "created_at =", session["created_at"], "age =", now - session["created_at"])
     # Valid for 24 hours (86400 seconds)
-    return (now - session["created_at"]) < 86400
+    valid = (now - session["created_at"]) < 86400
+    st.write("DEBUG: session valid?", valid)
+    return valid
 
 def get_active_io():
-    """
-    Handles login and session key management automatically.
-    If session expires (24hr), will re-login and refresh keys.
-    """
+    st.write("DEBUG [get_active_io]: Called")
     if is_session_valid():
-        # Use cached session keys
+        st.write("DEBUG: Using cached session keys")
         sess = st.session_state[SESSION_KEY_NAME]
         conn = ConnectToIntegrate()
         conn.set_session_keys(sess["uid"], sess["actid"], sess["api_session_key"], sess["ws_session_key"])
@@ -26,10 +28,12 @@ def get_active_io():
         st.session_state["integrate_io"] = io
         return io
     else:
+        st.write("DEBUG: Session invalid or expired, starting login flow")
         io = login_and_store()
         return io
 
 def login_and_store():
+    st.write("DEBUG [login_and_store]: Called")
     api_token = st.secrets["INTEGRATE_API_TOKEN"]
     api_secret = st.secrets["INTEGRATE_API_SECRET"]
     conn = ConnectToIntegrate()
@@ -45,13 +49,15 @@ def login_and_store():
             uid, actid, api_session_key, ws_session_key = conn.get_session_keys()
             conn.set_session_keys(uid, actid, api_session_key, ws_session_key)
             # Store session keys + timestamp
-            st.session_state[SESSION_KEY_NAME] = {
+            session_data = {
                 "uid": uid,
                 "actid": actid,
                 "api_session_key": api_session_key,
                 "ws_session_key": ws_session_key,
                 "created_at": time.time()
             }
+            st.session_state[SESSION_KEY_NAME] = session_data
+            st.write("DEBUG: Session stored in session_state:", session_data)
             io = IntegrateOrders(conn)
             st.session_state["integrate_io"] = io
             return io
