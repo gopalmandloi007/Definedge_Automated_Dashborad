@@ -98,3 +98,7 @@ def show():
                 gtt_modify_form(order)
     else:
         st.info("No pending GTT/OCO orders.")
+
+# --------- STREAMLIT PAGE ENTRYPOINT ---------
+def app():
+    show()
