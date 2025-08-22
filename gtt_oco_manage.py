@@ -1,6 +1,6 @@
 import streamlit as st
-from utils import integrate_post
-from master_loader import load_watchlist
+from utils import integrate_get, integrate_post
+import requests
 
 @st.cache_data
 def get_master_df():
