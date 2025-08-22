@@ -326,8 +326,9 @@ def app():
         ]
         df = pd.DataFrame(rows, columns=headers)
         df = df.sort_values("Invested", ascending=False)
-        portfolio_value = df['Current'].sum()
-        df['Portfolio %'] = (df['Current'] / portfolio_value * 100).round(2)
+        portfolio_value = pd.to_numeric(df['Current'], errors='coerce').sum()
+        df['Portfolio %'] = pd.to_numeric(df['Current'], errors='coerce') / portfolio_value * 100
+        df['Portfolio %'] = df['Portfolio %'].round(2)
         df['Action'] = "HOLD"
         df.loc[df['%Chg Avg'] > 25, 'Action'] = "CONSIDER PARTIAL PROFIT"
         df.loc[df['%Chg Avg'] < -15, 'Action'] = "REVIEW STOP LOSS"
@@ -346,12 +347,16 @@ def app():
         col1, col2 = st.columns(2)
         with col1:
             fig = go.Figure(
-                data=[go.Pie(labels=df["Symbol"], values=df["Current"], hole=0.3, name="Portfolio Allocation")],
+                data=[go.Pie(labels=df["Symbol"], values=pd.to_numeric(df["Current"], errors='coerce'), hole=0.3, name="Portfolio Allocation")],
                 layout=go.Layout(title="Portfolio Allocation")
             )
             st.plotly_chart(fig, use_container_width=True)
         with col2:
             risk_df = df.copy()
+            # Make sure "Current" and Portfolio %, etc. are numeric for color
+            risk_df['Current'] = pd.to_numeric(risk_df['Current'], errors='coerce')
+            risk_df['Portfolio %'] = pd.to_numeric(risk_df['Portfolio %'], errors='coerce')
+            risk_df['%Chg Avg'] = pd.to_numeric(risk_df['%Chg Avg'], errors='coerce')
             risk_df['Risk Score'] = np.where(
                 risk_df['%Chg Avg'] < -10, 3, 
                 np.where(risk_df['Portfolio %'] > 10, 2, 1)
