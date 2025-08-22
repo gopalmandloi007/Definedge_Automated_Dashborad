@@ -1,31 +1,11 @@
 import streamlit as st
 from utils import integrate_get, integrate_post
 import requests
-from master_loader import load_watchlist  # <- Make sure master_loader.py is present
 
-@st.cache_data
-def get_master_df():
-    df = load_watchlist("master.csv")
-    df = df[df["series"].isin(["EQ", "BE"])]
-    df = df[df["segment"].isin(["NSE", "BSE"])]
-    df["tradingsymbol"] = df["symbol"] + "-" + df["series"]
-    df = df.drop_duplicates(subset=["tradingsymbol"])
-    df["token"] = df["token"].astype(str)
-    return df
-
-def get_symbol_from_token(token, master_df):
-    row = master_df[master_df["token"] == str(token)]
-    if not row.empty:
-        return row.iloc[0]["tradingsymbol"]
-    return "?"
-
-def gtt_modify_form(order, master_df):
+def gtt_modify_form(order):
     unique_id = f"gtt_{order.get('alert_id', '')}"
-    symbol = order.get('tradingsymbol', '')
-    if not symbol:
-        symbol = get_symbol_from_token(order.get('token', ''), master_df)
     st.markdown("---")
-    st.subheader(f"Modify: {symbol} ({order.get('alert_id', '')})")
+    st.subheader(f"Modify: {order.get('tradingsymbol', '')} ({order.get('alert_id', '')})")
     with st.form(f"gtt_mod_form_{unique_id}", clear_on_submit=False):
         col1, col2, col3, col4 = st.columns(4)
         with col1:
@@ -44,12 +24,12 @@ def gtt_modify_form(order, master_df):
             remarks = st.text_input("Remarks", value=order.get('remarks', ''))
         c1, c2 = st.columns(2)
         submit_mod = c1.form_submit_button("Confirm Modify")
-        cancel_mod = c2.form_submit_button("Cancel Modification")
+        cancel_mod = c2.form_submit_button("Cancel Modification")  # New button!
         if submit_mod:
             payload = {
                 "exchange": order.get('exchange', ''),
                 "alert_id": order.get('alert_id', ''),
-                "tradingsymbol": symbol,
+                "tradingsymbol": order.get('tradingsymbol', ''),
                 "condition": condition,
                 "alert_price": str(alert_price),
                 "order_type": order_type,
@@ -71,11 +51,11 @@ def gtt_modify_form(order, master_df):
             st.session_state["gtt_mod_id"] = None
             st.experimental_rerun()
 
-def app():
+def show():
     st.title("Definedge Integrate Dashboard")
     st.header("GTT / OCO Orders Book & Manage")
 
-    master_df = get_master_df()
+    # Get combined GTT+OCO orders
     data = integrate_get("/gttorders")
     gttlist = data.get("pendingGTTOrderBook", [])
     gtt_mod_id = st.session_state.get("gtt_mod_id", None)
@@ -88,11 +68,7 @@ def app():
             cols[i].markdown(f"**{l}**")
         for idx, order in enumerate(gttlist):
             cols = st.columns([1.3, 1.1, 1.1, 1.2, 1.2, 0.8, 0.9, 1.2, 1, 1])
-            # --- Always show correct symbol via token lookup ---
-            symbol = order.get('tradingsymbol', '')
-            if not symbol:
-                symbol = get_symbol_from_token(order.get('token', ''), master_df)
-            cols[0].write(symbol)
+            cols[0].write(order.get('tradingsymbol', ''))
             cols[1].write(order.get('order_type', ''))
             cols[2].write(order.get('condition', ''))
             cols[3].write(order.get('alert_price', ''))
@@ -117,7 +93,8 @@ def app():
                 else:
                     st.success("Order cancelled!")
                 st.rerun()
+            # Show modify form below THIS row if selected
             if gtt_mod_id == order.get('alert_id', ''):
-                gtt_modify_form(order, master_df)
+                gtt_modify_form(order)
     else:
         st.info("No pending GTT/OCO orders.")
