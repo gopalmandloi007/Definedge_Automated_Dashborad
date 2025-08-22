@@ -9,10 +9,6 @@ import numpy as np
 import io
 from utils import integrate_get
 
-def app():
-    st.header("Holdings Details")
-    st.write
-
 def is_number(val):
     try:
         return isinstance(val, (int, float)) and not isinstance(val, bool)
@@ -251,7 +247,7 @@ def minervini_high_vs_ema20_interpretation(high, ema20):
         interp = "✅ Healthy: High is within reasonable range of 20 EMA"
     return diff_pct_rounded, interp
 
-def show():
+def app():
     st.title("Holdings Details Dashboard")
 
     api_session_key = st.secrets.get("integrate_api_session_key", "")
@@ -618,6 +614,3 @@ def show():
 
             except Exception as e:
                 st.error(f"Error fetching chart data: {e}")
-
-if __name__ == "__main__":
-    app()
