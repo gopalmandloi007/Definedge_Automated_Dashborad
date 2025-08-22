@@ -1,22 +1,8 @@
 import streamlit as st
-from utils import integrate_get, integrate_post
-import requests
+from utils import integrate_post
 
-@st.cache_data
-def get_master_df():
-    df = load_watchlist("master.csv")
-    df = df[df["series"].isin(["EQ", "BE"])]
-    df = df[df["segment"].isin(["NSE", "BSE"])]
-    df["tradingsymbol"] = df["symbol"] + "-" + df["series"]
-    df = df.drop_duplicates(subset=["tradingsymbol"])
-    return df
-
-def app():
+def show():
     st.header("Place GTT / OCO Order")
-
-    master_df = get_master_df()
-    symbol_list = master_df["tradingsymbol"].tolist()
-    symbol_default = "RELIANCE-EQ" if "RELIANCE-EQ" in symbol_list else (symbol_list[0] if symbol_list else "")
 
     order_type = st.radio("Choose Order Type:", ["Single GTT", "OCO"], horizontal=True)
 
@@ -24,13 +10,8 @@ def app():
         st.markdown("##### Place Single GTT Order")
         col1, col2, col3 = st.columns(3)
         with col1:
-            tradingsymbol = st.selectbox(
-                "Trading Symbol", symbol_list,
-                index=symbol_list.index(symbol_default) if symbol_default in symbol_list else 0,
-                key="gtt_tradingsymbol"
-            )
-            selected_row = master_df[master_df["tradingsymbol"] == tradingsymbol].iloc[0]
-            exchange = st.selectbox("Exchange", [selected_row["segment"]], key="gtt_exchange")
+            tradingsymbol = st.text_input("Trading Symbol", key="gtt_tradingsymbol")
+            exchange = st.selectbox("Exchange", ["NSE", "BSE", "NFO", "BFO", "CDS", "MCX"], key="gtt_exchange")
         with col2:
             action = st.radio("Action", ["BUY", "SELL"], horizontal=True, key="gtt_action")
             product_type = st.radio("Product Type", ["CNC", "INTRADAY", "NORMAL"], horizontal=True, key="gtt_product_type")
@@ -65,13 +46,8 @@ def app():
         st.markdown("##### Place OCO Order (Target & Stoploss)")
         col1, col2, col3 = st.columns(3)
         with col1:
-            tradingsymbol = st.selectbox(
-                "Trading Symbol", symbol_list,
-                index=symbol_list.index(symbol_default) if symbol_default in symbol_list else 0,
-                key="oco_tradingsymbol"
-            )
-            selected_row = master_df[master_df["tradingsymbol"] == tradingsymbol].iloc[0]
-            exchange = st.selectbox("Exchange", [selected_row["segment"]], key="oco_exchange")
+            tradingsymbol = st.text_input("Trading Symbol", key="oco_tradingsymbol")
+            exchange = st.selectbox("Exchange", ["NSE", "BSE", "NFO", "BFO", "CDS", "MCX"], key="oco_exchange")
         with col2:
             action = st.radio("Action", ["BUY", "SELL"], horizontal=True, key="oco_action")
             product_type = st.radio("Product Type", ["CNC", "INTRADAY", "NORMAL"], horizontal=True, key="oco_product_type")
