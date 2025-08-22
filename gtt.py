@@ -1,6 +1,7 @@
 import streamlit as st
 from utils import integrate_get, integrate_post
 import requests
+from master_loader import load_watchlist  # <- Make sure master_loader.py is present
 
 @st.cache_data
 def get_master_df():
@@ -20,7 +21,6 @@ def get_symbol_from_token(token, master_df):
 
 def gtt_modify_form(order, master_df):
     unique_id = f"gtt_{order.get('alert_id', '')}"
-    # Map symbol using token if not directly present
     symbol = order.get('tradingsymbol', '')
     if not symbol:
         symbol = get_symbol_from_token(order.get('token', ''), master_df)
@@ -29,19 +29,22 @@ def gtt_modify_form(order, master_df):
     with st.form(f"gtt_mod_form_{unique_id}", clear_on_submit=False):
         col1, col2, col3, col4 = st.columns(4)
         with col1:
-            condition = st.radio("Condition", ["LTP_ABOVE", "LTP_BELOW", "LMT_OCO"], index=["LTP_ABOVE", "LTP_BELOW", "LMT_OCO"].index(order.get('condition', 'LTP_ABOVE')))
-            order_type = st.radio("Order Type", ["BUY", "SELL"], index=0 if order.get('order_type', 'BUY') == "BUY" else 1)
+            condition = st.radio("Condition", ["LTP_ABOVE", "LTP_BELOW", "LMT_OCO"],
+                                 index=["LTP_ABOVE", "LTP_BELOW", "LMT_OCO"].index(order.get('condition', 'LTP_ABOVE')))
+            order_type = st.radio("Order Type", ["BUY", "SELL"],
+                                  index=0 if order.get('order_type', 'BUY') == "BUY" else 1)
         with col2:
             alert_price = st.number_input("Alert Price", value=float(order.get('alert_price', 0)))
             price = st.number_input("Order Price", value=float(order.get('price', 0)))
         with col3:
             quantity = st.number_input("Quantity", value=int(order.get('quantity', 1)), step=1)
-            product_type = st.radio("Product Type", ["CNC", "INTRADAY", "NORMAL"], index=["CNC", "INTRADAY", "NORMAL"].index(order.get('product_type', 'CNC')))
+            product_type = st.radio("Product Type", ["CNC", "INTRADAY", "NORMAL"],
+                                    index=["CNC", "INTRADAY", "NORMAL"].index(order.get('product_type', 'CNC')))
         with col4:
             remarks = st.text_input("Remarks", value=order.get('remarks', ''))
         c1, c2 = st.columns(2)
         submit_mod = c1.form_submit_button("Confirm Modify")
-        cancel_mod = c2.form_submit_button("Cancel Modification")  # New button!
+        cancel_mod = c2.form_submit_button("Cancel Modification")
         if submit_mod:
             payload = {
                 "exchange": order.get('exchange', ''),
@@ -85,6 +88,7 @@ def app():
             cols[i].markdown(f"**{l}**")
         for idx, order in enumerate(gttlist):
             cols = st.columns([1.3, 1.1, 1.1, 1.2, 1.2, 0.8, 0.9, 1.2, 1, 1])
+            # --- Always show correct symbol via token lookup ---
             symbol = order.get('tradingsymbol', '')
             if not symbol:
                 symbol = get_symbol_from_token(order.get('token', ''), master_df)
