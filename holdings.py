@@ -158,7 +158,7 @@ def highlight_pnl(val):
 
 def generate_insights(row, portfolio_value):
     insights = []
-    position_size = (row['Current'] / portfolio_value) * 100
+    position_size = (row['Current'] / portfolio_value) * 100 if portfolio_value else 0
     if position_size > 15:
         insights.append("⚠️ Position too large (>15% of portfolio)")
     elif position_size < 3:
@@ -305,17 +305,17 @@ def app():
             total_current += current
             rows.append([
                 tsym,
-                round(ltp, 2) if ltp is not None else "N/A",
-                round(avg_buy, 2) if avg_buy is not None else "N/A",
+                round(ltp, 2) if ltp is not None else np.nan,
+                round(avg_buy, 2) if avg_buy is not None else np.nan,
                 int(qty),
-                round(prev_close, 2) if prev_close is not None else "N/A",
-                round(pct_chg, 2) if ltp is not None else "N/A",
-                round(today_pnl, 2) if ltp is not None else "N/A",
-                round(overall_pnl, 2) if ltp is not None else "N/A",
-                round(realized_pnl, 2) if realized_pnl else "",
-                round(pct_chg_avg, 2) if ltp is not None else "N/A",
-                round(invested, 2) if invested else "N/A",
-                round(current, 2) if current else "N/A",
+                round(prev_close, 2) if prev_close is not None else np.nan,
+                round(pct_chg, 2) if ltp is not None else np.nan,
+                round(today_pnl, 2) if ltp is not None else np.nan,
+                round(overall_pnl, 2) if ltp is not None else np.nan,
+                round(realized_pnl, 2) if realized_pnl else np.nan,
+                round(pct_chg_avg, 2) if ltp is not None else np.nan,
+                round(invested, 2) if invested else np.nan,
+                round(current, 2) if current else np.nan,
                 exch,
                 isin,
             ])
@@ -325,10 +325,11 @@ def app():
             "Realized P&L", "%Chg Avg", "Invested", "Current", "Exchange", "ISIN"
         ]
         df = pd.DataFrame(rows, columns=headers)
-        df = df.sort_values("Invested", ascending=False)
-        portfolio_value = pd.to_numeric(df['Current'], errors='coerce').sum()
-        df['Portfolio %'] = pd.to_numeric(df['Current'], errors='coerce') / portfolio_value * 100
-        df['Portfolio %'] = df['Portfolio %'].round(2)
+        # ---- NUMERIC CLEANUP ----
+        for col in ["LTP", "Avg Buy", "P.Close", "%Chg", "Today P&L", "Overall P&L", "Realized P&L", "%Chg Avg", "Invested", "Current"]:
+            df[col] = pd.to_numeric(df[col], errors='coerce')
+        portfolio_value = df['Current'].sum()
+        df['Portfolio %'] = (df['Current'] / portfolio_value * 100).round(2)
         df['Action'] = "HOLD"
         df.loc[df['%Chg Avg'] > 25, 'Action'] = "CONSIDER PARTIAL PROFIT"
         df.loc[df['%Chg Avg'] < -15, 'Action'] = "REVIEW STOP LOSS"
@@ -347,16 +348,12 @@ def app():
         col1, col2 = st.columns(2)
         with col1:
             fig = go.Figure(
-                data=[go.Pie(labels=df["Symbol"], values=pd.to_numeric(df["Current"], errors='coerce'), hole=0.3, name="Portfolio Allocation")],
+                data=[go.Pie(labels=df["Symbol"], values=df["Current"], hole=0.3, name="Portfolio Allocation")],
                 layout=go.Layout(title="Portfolio Allocation")
             )
             st.plotly_chart(fig, use_container_width=True)
         with col2:
             risk_df = df.copy()
-            # Make sure "Current" and Portfolio %, etc. are numeric for color
-            risk_df['Current'] = pd.to_numeric(risk_df['Current'], errors='coerce')
-            risk_df['Portfolio %'] = pd.to_numeric(risk_df['Portfolio %'], errors='coerce')
-            risk_df['%Chg Avg'] = pd.to_numeric(risk_df['%Chg Avg'], errors='coerce')
             risk_df['Risk Score'] = np.where(
                 risk_df['%Chg Avg'] < -10, 3, 
                 np.where(risk_df['Portfolio %'] > 10, 2, 1)
