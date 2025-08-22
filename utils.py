@@ -1,49 +1,56 @@
 import streamlit as st
 import requests
+from debug_utils import debug_log
 
 def get_session_headers():
     session = st.session_state.get("integrate_session")
     if not session:
         return {}
-    # Docs ke hisaab se header "Authorization" hona chahiye!
-    return {"Authorization": session["api_session_key"]}
+    # Docs dekh kar actid, uid bhi bhejna ho toh uncomment kar lo
+    return {
+        "Authorization": session["api_session_key"],
+        "actid": session["actid"],
+        "uid": session["uid"],
+    }
 
 def integrate_get(path):
     base_url = "https://integrate.definedgesecurities.com/dart/v1"
     headers = get_session_headers()
     url = base_url + path
+    debug_log(f"GET {url} with headers {headers}")
     try:
         resp = requests.get(url, headers=headers, timeout=15)
+        debug_log(f"GET response: {resp.status_code} - {resp.text}")
         resp.raise_for_status()
         try:
-            return resp.json()
+            data = resp.json()
+            if data.get("status") == "ERROR" and "session" in data.get("message", "").lower():
+                debug_log("Session expired error detected in API response.")
+                st.session_state.pop("integrate_session", None)
+            return data
         except Exception:
             return {"status": "ERROR", "message": f"Non-JSON response: {resp.text}"}
-    except requests.ConnectionError:
-        return {"status": "ERROR", "message": f"Could not connect to API server at {url}. Please check your network or API status."}
-    except requests.Timeout:
-        return {"status": "ERROR", "message": f"Request to {url} timed out."}
-    except requests.HTTPError as e:
-        return {"status": "ERROR", "message": f"HTTP error: {e}, Response: {getattr(e.response, 'text', '')}"}
     except Exception as e:
-        return {"status": "ERROR", "message": f"Unexpected error: {str(e)}"}
+        debug_log(f"GET error: {e}")
+        return {"status": "ERROR", "message": str(e)}
 
 def integrate_post(path, payload):
     base_url = "https://integrate.definedgesecurities.com/dart/v1"
     headers = get_session_headers()
     url = base_url + path
+    debug_log(f"POST {url} payload {payload} headers {headers}")
     try:
         resp = requests.post(url, json=payload, headers=headers, timeout=15)
+        debug_log(f"POST response: {resp.status_code} - {resp.text}")
         resp.raise_for_status()
         try:
-            return resp.json()
+            data = resp.json()
+            if data.get("status") == "ERROR" and "session" in data.get("message", "").lower():
+                debug_log("Session expired error detected in API response.")
+                st.session_state.pop("integrate_session", None)
+            return data
         except Exception:
             return {"status": "ERROR", "message": f"Non-JSON response: {resp.text}"}
-    except requests.ConnectionError:
-        return {"status": "ERROR", "message": f"Could not connect to API server at {url}. Please check your network or API status."}
-    except requests.Timeout:
-        return {"status": "ERROR", "message": f"Request to {url} timed out."}
-    except requests.HTTPError as e:
-        return {"status": "ERROR", "message": f"HTTP error: {e}, Response: {getattr(e.response, 'text', '')}"}
     except Exception as e:
-        return {"status": "ERROR", "message": f"Unexpected error: {str(e)}"}
+        debug_log(f"POST error: {e}")
+        return {"status": "ERROR", "message": str(e)}
