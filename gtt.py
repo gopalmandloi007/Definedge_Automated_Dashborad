@@ -24,7 +24,7 @@ def gtt_modify_form(order):
             remarks = st.text_input("Remarks", value=order.get('remarks', ''))
         c1, c2 = st.columns(2)
         submit_mod = c1.form_submit_button("Confirm Modify")
-        cancel_mod = c2.form_submit_button("Cancel Modification")  # New button!
+        cancel_mod = c2.form_submit_button("Cancel Modification")
         if submit_mod:
             payload = {
                 "exchange": order.get('exchange', ''),
@@ -55,7 +55,6 @@ def show():
     st.title("Definedge Integrate Dashboard")
     st.header("GTT / OCO Orders Book & Manage")
 
-    # Get combined GTT+OCO orders
     data = integrate_get("/gttorders")
     gttlist = data.get("pendingGTTOrderBook", [])
     gtt_mod_id = st.session_state.get("gtt_mod_id", None)
@@ -93,8 +92,11 @@ def show():
                 else:
                     st.success("Order cancelled!")
                 st.rerun()
-            # Show modify form below THIS row if selected
             if gtt_mod_id == order.get('alert_id', ''):
                 gtt_modify_form(order)
     else:
         st.info("No pending GTT/OCO orders.")
+
+# Correct the error: Streamlit expects an app() function for page scripts.
+def app():
+    show()
