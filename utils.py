@@ -10,17 +10,39 @@ def get_session_headers():
 def integrate_get(path):
     base_url = "https://api.definedgesecurities.com"  # Replace with actual base URL
     headers = get_session_headers()
-    resp = requests.get(base_url + path, headers=headers)
+    url = base_url + path
     try:
-        return resp.json()
-    except Exception:
-        return {"status": "ERROR", "message": resp.text}
+        resp = requests.get(url, headers=headers, timeout=15)
+        resp.raise_for_status()  # Raise HTTPError for bad responses (4xx/5xx)
+        try:
+            return resp.json()
+        except Exception:
+            return {"status": "ERROR", "message": f"Non-JSON response: {resp.text}"}
+    except requests.ConnectionError:
+        return {"status": "ERROR", "message": f"Could not connect to API server at {url}. Please check your network or API status."}
+    except requests.Timeout:
+        return {"status": "ERROR", "message": f"Request to {url} timed out."}
+    except requests.HTTPError as e:
+        return {"status": "ERROR", "message": f"HTTP error: {e}, Response: {getattr(e.response, 'text', '')}"}
+    except Exception as e:
+        return {"status": "ERROR", "message": f"Unexpected error: {str(e)}"}
 
 def integrate_post(path, payload):
     base_url = "https://api.definedgesecurities.com"  # Replace with actual base URL
     headers = get_session_headers()
-    resp = requests.post(base_url + path, json=payload, headers=headers)
+    url = base_url + path
     try:
-        return resp.json()
-    except Exception:
-        return {"status": "ERROR", "message": resp.text}
+        resp = requests.post(url, json=payload, headers=headers, timeout=15)
+        resp.raise_for_status()
+        try:
+            return resp.json()
+        except Exception:
+            return {"status": "ERROR", "message": f"Non-JSON response: {resp.text}"}
+    except requests.ConnectionError:
+        return {"status": "ERROR", "message": f"Could not connect to API server at {url}. Please check your network or API status."}
+    except requests.Timeout:
+        return {"status": "ERROR", "message": f"Request to {url} timed out."}
+    except requests.HTTPError as e:
+        return {"status": "ERROR", "message": f"HTTP error: {e}, Response: {getattr(e.response, 'text', '')}"}
+    except Exception as e:
+        return {"status": "ERROR", "message": f"Unexpected error: {str(e)}"}
