@@ -1,64 +1,87 @@
 import streamlit as st
 import time
+import json
+import os
 from integrate import ConnectToIntegrate, IntegrateOrders
+from debug_utils import debug_log
 
 SESSION_KEY_NAME = "integrate_session"
+SESSION_FILE = "session.json"
 
-def is_session_valid():
-    session = st.session_state.get(SESSION_KEY_NAME)
+def save_session_to_file(session):
+    with open(SESSION_FILE, "w") as f:
+        json.dump(session, f)
+
+def load_session_from_file():
+    if os.path.exists(SESSION_FILE):
+        with open(SESSION_FILE, "r") as f:
+            session = json.load(f)
+            return session
+    return None
+
+def is_session_valid(session=None):
+    if session is None:
+        session = st.session_state.get(SESSION_KEY_NAME)
+    if session is None:
+        session = load_session_from_file()
     if session is None:
         return False
     now = time.time()
-    # Valid for 24 hours (86400 seconds)
     return (now - session["created_at"]) < 86400
 
 def get_active_io():
     if is_session_valid():
-        sess = st.session_state[SESSION_KEY_NAME]
+        sess = st.session_state.get(SESSION_KEY_NAME) or load_session_from_file()
+        debug_log(f"Using saved session: {sess}")
         conn = ConnectToIntegrate()
         conn.set_session_keys(sess["uid"], sess["actid"], sess["api_session_key"], sess["ws_session_key"])
         io = IntegrateOrders(conn)
         st.session_state["integrate_io"] = io
+        st.session_state[SESSION_KEY_NAME] = sess
         return io
     else:
         return login_and_store()
 
 def login_and_store():
-    # >>> First check, if session is already valid, do NOT show OTP UI <<<
     if is_session_valid():
-        sess = st.session_state[SESSION_KEY_NAME]
+        sess = st.session_state.get(SESSION_KEY_NAME) or load_session_from_file()
+        debug_log("Session still valid, skipping login.")
         conn = ConnectToIntegrate()
         conn.set_session_keys(sess["uid"], sess["actid"], sess["api_session_key"], sess["ws_session_key"])
         io = IntegrateOrders(conn)
         st.session_state["integrate_io"] = io
+        st.session_state[SESSION_KEY_NAME] = sess
         return io
 
-    # Only this code runs if session is NOT valid
     api_token = st.secrets["INTEGRATE_API_TOKEN"]
     api_secret = st.secrets["INTEGRATE_API_SECRET"]
     conn = ConnectToIntegrate()
     step1_resp = conn.login_step1(api_token=api_token, api_secret=api_secret)
+    debug_log(f"Login Step 1 Response: {step1_resp}")
     st.info(step1_resp.get("message", "OTP sent to your registered mobile/email."))
     otp = st.text_input("Enter OTP sent to your mobile/email:", type="password")
-    # Trick: Only process OTP if button pressed and not before!
     if st.button("Submit OTP"):
         try:
             step2_resp = conn.login_step2(otp)
+            debug_log(f"Login Step 2 Response: {step2_resp}")
             st.success("Login successful!")
             uid, actid, api_session_key, ws_session_key = conn.get_session_keys()
-            conn.set_session_keys(uid, actid, api_session_key, ws_session_key)
-            st.session_state[SESSION_KEY_NAME] = {
+            session = {
                 "uid": uid,
                 "actid": actid,
                 "api_session_key": api_session_key,
                 "ws_session_key": ws_session_key,
                 "created_at": time.time()
             }
+            save_session_to_file(session)
+            st.session_state[SESSION_KEY_NAME] = session
+            conn.set_session_keys(uid, actid, api_session_key, ws_session_key)
             io = IntegrateOrders(conn)
             st.session_state["integrate_io"] = io
+            debug_log("Login successful, session saved.")
             return io
         except Exception as e:
+            debug_log(f"Login failed: {e}")
             st.error(f"Login failed: {e}")
             return None
-    # Important: If not submitted OTP, return None! (So rerun doesn't go forward)
     return None
