@@ -1,5 +1,5 @@
 import streamlit as st
-from session_utilis import get_active_io
+from session_utils import get_active_io
 
 # Set page config ONCE at the top
 st.set_page_config(page_title="Gopal Mandloi_Dashboard", layout="wide")
