@@ -14,6 +14,12 @@ if "authenticated" not in st.session_state or not st.session_state["authenticate
 
 st.success("Session active! All API calls are automated.")
 
+# --- SESSION OBJECTS ---
+io = None
+if hasattr(session_utils, "get_active_io"):
+    io = session_utils.get_active_io()
+    st.session_state["integrate_io"] = io
+
 # --- LEGACY PAGES ---
 PAGES = {
     "Holdings": "holdings",
@@ -40,7 +46,7 @@ PAGES = {
 # --- DEBUG LOG VIEWER ---
 with st.sidebar.expander("Show Debug Log"):
     if st.button("Refresh Debug Log"):
-        pass
+        st.experimental_rerun()
     try:
         with open("debug.log") as f:
             log_lines = f.readlines()[-50:]
@@ -49,10 +55,6 @@ with st.sidebar.expander("Show Debug Log"):
         st.info("Debug log not available yet.")
 
 selected_page = st.sidebar.selectbox("Select Page", list(PAGES.keys()))
-
-# --- SESSION OBJECTS ---
-io = session_utils.get_active_io()
-st.session_state["integrate_io"] = io
 
 # --- PAGE LOADER ---
 try:
@@ -68,3 +70,5 @@ try:
         )
 except ModuleNotFoundError as e:
     st.error(f"Module `{PAGES[selected_page]}` not found. Please check your file/module names.\n\nError: {e}")
+except Exception as e:
+    st.error(f"Error loading page `{selected_page}`: {e}")
