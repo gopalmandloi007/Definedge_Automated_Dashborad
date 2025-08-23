@@ -1,12 +1,7 @@
 import datetime
-import os
 
 def debug_log(msg, log_file="debug.log", print_console=False):
     try:
-        # Ensure log directory exists if using path
-        log_dir = os.path.dirname(log_file)
-        if log_dir and not os.path.exists(log_dir):
-            os.makedirs(log_dir)
         log_entry = f"{datetime.datetime.now().isoformat()} - {msg}\n"
         with open(log_file, "a") as f:
             f.write(log_entry)
