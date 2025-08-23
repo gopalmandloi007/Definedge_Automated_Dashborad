@@ -3,6 +3,7 @@ import importlib
 from login import login_page
 import session_utils
 
+# --- PAGE SETTINGS ---
 st.set_page_config(page_title="Gopal Mandloi Dashboard", layout="wide")
 st.title("Gopal Mandloi Integrate Autobot (Automated Mode)")
 
@@ -13,6 +14,7 @@ if "authenticated" not in st.session_state or not st.session_state["authenticate
 
 st.success("Session active! All API calls are automated.")
 
+# --- LEGACY PAGES ---
 PAGES = {
     "Holdings": "holdings",
     "Holdings Details": "holdings_details",
@@ -31,9 +33,11 @@ PAGES = {
     "Batch Symbol Scanner": "definedge_batch_scan",
     "Candlestick Demo": "simple_chart_demo",
     "Websocket Help": "websocket_help",
+    # --- NEW TRADEBOT PAGE ---
+    "Tradebot": "tradebot",  # <--- Your new bot page
 }
 
-# Debug log viewer in sidebar
+# --- DEBUG LOG VIEWER ---
 with st.sidebar.expander("Show Debug Log"):
     if st.button("Refresh Debug Log"):
         pass
@@ -46,9 +50,11 @@ with st.sidebar.expander("Show Debug Log"):
 
 selected_page = st.sidebar.selectbox("Select Page", list(PAGES.keys()))
 
+# --- SESSION OBJECTS ---
 io = session_utils.get_active_io()
 st.session_state["integrate_io"] = io
 
+# --- PAGE LOADER ---
 try:
     page_module = importlib.import_module(PAGES[selected_page])
     if hasattr(page_module, "app"):
