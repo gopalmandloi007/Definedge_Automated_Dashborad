@@ -61,10 +61,8 @@ def get_active_session():
     return None
 
 def get_active_io(force_new_login=False):
-    # If force_new_login is True, clear any stored session
     if force_new_login:
         logout_session()
-    # Try to restore session if valid
     session = get_active_session()
     if session:
         debug_log(f"Using saved session: {session}")
@@ -75,7 +73,6 @@ def get_active_io(force_new_login=False):
         st.session_state[SESSION_KEY_NAME] = session
         return io
 
-    # If not valid, start login flow (but only after PIN entered)
     api_token = get_full_api_token()
     api_secret = st.secrets.get("INTEGRATE_API_SECRET")
     if not api_token or not api_secret:
