@@ -4,7 +4,6 @@ import time
 import json
 import os
 
-# ---- Settings ----
 SESSION_KEY_NAME = "integrate_session"
 SESSION_FILE = "session.json"
 SESSION_EXPIRY_SECONDS = 84600  # 23.5 hours
@@ -72,9 +71,6 @@ def logout_session():
         pass
 
 def send_otp_request():
-    """
-    Send OTP only on manual request or after expiry. Save OTP token and send time in session_state.
-    """
     api_token = get_full_api_token()
     api_secret = st.secrets.get("INTEGRATE_API_SECRET")
     if not api_token or not api_secret:
@@ -95,9 +91,6 @@ def send_otp_request():
         return {}
 
 def verify_otp(otp_token, otp):
-    """
-    Verify OTP using broker API. Returns True if login succeeds, else False.
-    """
     api_token = get_full_api_token()
     api_secret = st.secrets.get("INTEGRATE_API_SECRET")
     if not api_token or not api_secret:
@@ -164,7 +157,6 @@ def login_page():
             logout_session()
             st.session_state["force_new_login"] = True
             st.experimental_rerun()
-            return
         st.stop()
     if st.session_state.get("force_new_login", False):
         st.session_state["force_new_login"] = False
@@ -177,7 +169,6 @@ def login_page():
                 st.session_state["user_pin"] = pin
                 st.session_state["pin_entered"] = True
                 st.experimental_rerun()
-                return
             else:
                 st.error("Invalid PIN. Please enter exactly 4 alphanumeric characters.")
         st.stop()
