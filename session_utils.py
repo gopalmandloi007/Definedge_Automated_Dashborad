@@ -56,12 +56,14 @@ def get_active_session():
     # Try from file
     session = load_session_from_file()
     if session and is_session_valid(session):
-        # Also update Streamlit state for consistency
         st.session_state[SESSION_KEY_NAME] = session
         return session
     return None
 
-def get_active_io():
+def get_active_io(force_new_login=False):
+    # If force_new_login is True, clear any stored session
+    if force_new_login:
+        logout_session()
     # Try to restore session if valid
     session = get_active_session()
     if session:
@@ -110,8 +112,8 @@ def get_active_io():
                 conn.set_session_keys(uid, actid, api_session_key, ws_session_key)
                 io = IntegrateOrders(conn)
                 st.session_state["integrate_io"] = io
-                debug_log("Login successful, session saved.")
                 st.session_state["authenticated"] = True
+                debug_log("Login successful, session saved.")
                 st.success("Login successful! You may now use the dashboard.")
                 st.stop()
                 return io
