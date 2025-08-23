@@ -54,7 +54,7 @@ def login_page():
     otp_token = st.session_state.get("otp_token")
     otp_sent_time = st.session_state.get("otp_sent_time")
     otp_expired = session_utils.otp_expired()
-    now = session_utils.time.time() if hasattr(session_utils, "time") else time.time()
+    now = time.time()
 
     # Show info if OTP sent and valid
     if otp_token and otp_sent_time and not otp_expired:
