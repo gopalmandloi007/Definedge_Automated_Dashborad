@@ -1,12 +1,15 @@
 import streamlit as st
 import importlib
-from session_utils import get_active_io
-from debug_utils import debug_log  # For logging/debugging
 
 st.set_page_config(page_title="Gopal Mandloi Dashboard", layout="wide")
 st.title("Gopal Mandloi Integrate Autobot (Automated Mode)")
 
-st.info("This app manages its own login/session lifecycle. No manual session keys needed!")
+# --- SESSION GATEKEEPER ---
+if "authenticated" not in st.session_state or not st.session_state["authenticated"]:
+    import login  # This will run login.py and stop here if not authenticated
+    st.stop()
+
+st.success("Session active! All API calls are automated.")
 
 PAGES = {
     "Holdings": "holdings",
@@ -28,13 +31,6 @@ PAGES = {
     "Websocket Help": "websocket_help",
 }
 
-# --- SESSION MANAGEMENT ---
-io = get_active_io()
-if io is None:
-    st.stop()  # Show only login/OTP UI
-
-st.success("Session active! All API calls are automated.")
-
 # (Optional) Debug log viewer in sidebar
 with st.sidebar.expander("Show Debug Log"):
     if st.button("Refresh Debug Log"):
@@ -47,6 +43,9 @@ with st.sidebar.expander("Show Debug Log"):
         st.info("Debug log not available yet.")
 
 selected_page = st.sidebar.selectbox("Select Page", list(PAGES.keys()))
+
+import session_utils
+io = session_utils.get_active_io()
 st.session_state["integrate_io"] = io
 
 try:
