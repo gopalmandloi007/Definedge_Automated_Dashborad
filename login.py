@@ -6,8 +6,8 @@ import os
 
 SESSION_KEY_NAME = "integrate_session"
 SESSION_FILE = "session.json"
-SESSION_EXPIRY_SECONDS = 84600  # 23.5 hours
-OTP_VALIDITY_SECONDS = 300      # 5 minutes
+SESSION_EXPIRY_SECONDS = 84600
+OTP_VALIDITY_SECONDS = 300
 
 def get_full_api_token():
     try:
@@ -157,6 +157,7 @@ def login_page():
             logout_session()
             st.session_state["force_new_login"] = True
             st.experimental_rerun()
+            return
         st.stop()
     if st.session_state.get("force_new_login", False):
         st.session_state["force_new_login"] = False
@@ -169,6 +170,7 @@ def login_page():
                 st.session_state["user_pin"] = pin
                 st.session_state["pin_entered"] = True
                 st.experimental_rerun()
+                return  # <--- Do NOT call st.stop() after rerun!
             else:
                 st.error("Invalid PIN. Please enter exactly 4 alphanumeric characters.")
         st.stop()
