@@ -61,7 +61,7 @@ def get_active_io():
 
     # If not valid, start login flow (but only after PIN entered)
     api_token = get_full_api_token()
-    api_secret = st.secrets["INTEGRATE_API_SECRET"]
+    api_secret = st.secrets.get("INTEGRATE_API_SECRET")
     if not api_token or not api_secret:
         st.error("API token or API secret not set. Please check your secrets.toml and PIN.")
         return None
@@ -95,6 +95,10 @@ def get_active_io():
                 st.success("Login successful! You may now use the dashboard.")
                 st.stop()
                 return io
+            except ValueError as e:
+                debug_log(f"Login failed: {e}")
+                st.error("Broker API returned an empty or invalid response. Possible causes:\n- OTP already used/expired\n- Network/server error\n- Wrong secrets")
+                return None
             except Exception as e:
                 debug_log(f"Login failed: {e}")
                 st.error(f"Login failed: {e}")
