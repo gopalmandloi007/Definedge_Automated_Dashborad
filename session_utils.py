@@ -9,7 +9,7 @@ SESSION_KEY_NAME = "integrate_session"
 SESSION_FILE = "session.json"
 
 def get_full_api_token():
-    partial = st.secrets["INTEGRATE_API_TOKEN_PARTIAL"]
+    partial = st.secrets["INTEGRATE_API_TOKEN"]
     pin = st.session_state.get("user_pin", "")
     return partial + pin if len(pin) == 4 else None
 
