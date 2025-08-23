@@ -1,12 +1,10 @@
 import streamlit as st
 import session_utils
-import time
-
-OTP_VALIDITY_SECONDS = 300  # 5 minutes
 
 def login_page():
     st.subheader("🔐 Secure Login (PIN + OTP)")
 
+    # Already authenticated
     if st.session_state.get("authenticated", False):
         col1, col2 = st.columns(2)
         if col1.button("🔒 Lock"):
@@ -20,6 +18,7 @@ def login_page():
         st.info("Already logged in!")
         st.stop()
 
+    # If previous session valid
     previous_session = session_utils.get_active_session()
     if previous_session and not st.session_state.get("force_new_login", False):
         st.success("Previous session is active.")
@@ -35,10 +34,10 @@ def login_page():
             st.experimental_rerun()
             return
         st.stop()
-
     if st.session_state.get("force_new_login", False):
         st.session_state["force_new_login"] = False
 
+    # PIN entry
     if not st.session_state.get("pin_entered", False):
         pin = st.text_input("Enter your PIN (last 4 digits of your API token):", max_chars=4, type="password")
         if st.button("Submit PIN"):
@@ -52,33 +51,28 @@ def login_page():
         st.stop()
 
     # OTP Management
-    otp_sent_time = st.session_state.get("otp_sent_time")
     otp_token = st.session_state.get("otp_token")
-    otp_expired = False
-    now = time.time()
+    otp_sent_time = st.session_state.get("otp_sent_time")
+    otp_expired = session_utils.otp_expired()
+    now = session_utils.time.time() if hasattr(session_utils, "time") else time.time()
 
-    if otp_token and otp_sent_time:
-        if now - otp_sent_time > OTP_VALIDITY_SECONDS:
-            otp_expired = True
-            st.session_state["otp_token"] = None
-            st.session_state["otp_sent_time"] = None
-            st.warning("OTP expired. Please request a new OTP.")
-        else:
-            time_left = int(OTP_VALIDITY_SECONDS - (now - otp_sent_time))
-            st.info(f"An OTP has been sent. Please enter it below. (Valid for {time_left} seconds)")
+    # Show info if OTP sent and valid
+    if otp_token and otp_sent_time and not otp_expired:
+        time_left = int(300 - (now - otp_sent_time))
+        st.info(f"An OTP has been sent. Please enter it below. (Valid for {time_left} seconds)")
     else:
-        otp_expired = True
+        otp_token = None
 
-    if st.button("Regenerate OTP") or otp_expired:
-        otp_response = session_utils.send_otp_request(pin=st.session_state.get("user_pin", ""))
+    # Regenerate OTP button
+    if st.button("Regenerate OTP") or not otp_token:
+        otp_response = session_utils.send_otp_request()
         if otp_response and otp_response.get("otp_token"):
-            st.session_state["otp_token"] = otp_response["otp_token"]
-            st.session_state["otp_sent_time"] = time.time()
             st.success("OTP sent to your mobile/email. Please enter it below.")
         else:
             st.error("Failed to send OTP. Please check your PIN or try again.")
         st.stop()
 
+    # OTP entry
     otp_token = st.session_state.get("otp_token")
     if otp_token:
         otp_input = st.text_input("Enter OTP:", max_chars=6, type="password")
