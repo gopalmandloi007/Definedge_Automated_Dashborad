@@ -1,5 +1,6 @@
 import streamlit as st
 import requests
+import os
 from debug_utils import debug_log
 
 def get_session_headers():
@@ -25,7 +26,6 @@ def integrate_get(path):
             data = resp.json()
             if data.get("status") == "ERROR" and "session" in data.get("message", "").lower():
                 debug_log("Session expired error detected in API response.")
-                # Remove session from both Streamlit and file
                 st.session_state.pop("integrate_session", None)
                 try:
                     os.remove("session.json")
