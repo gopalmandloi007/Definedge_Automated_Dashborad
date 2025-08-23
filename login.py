@@ -36,5 +36,4 @@ def login_page():
         st.success("Login successful! You may now use the dashboard.")
         st.stop()
     else:
-        # The get_active_io() flow will handle OTP and error display
         st.stop()
