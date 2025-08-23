@@ -6,11 +6,10 @@ def get_session_headers():
     session = st.session_state.get("integrate_session")
     if not session:
         return {}
-    # Docs dekh kar actid, uid bhi bhejna ho toh uncomment kar lo
     return {
         "Authorization": session["api_session_key"],
         "actid": session["actid"],
-        "uid": session["uid"],
+        "uid": session["uid"]
     }
 
 def integrate_get(path):
@@ -26,7 +25,12 @@ def integrate_get(path):
             data = resp.json()
             if data.get("status") == "ERROR" and "session" in data.get("message", "").lower():
                 debug_log("Session expired error detected in API response.")
+                # Remove session from both Streamlit and file
                 st.session_state.pop("integrate_session", None)
+                try:
+                    os.remove("session.json")
+                except Exception:
+                    pass
             return data
         except Exception:
             return {"status": "ERROR", "message": f"Non-JSON response: {resp.text}"}
@@ -48,6 +52,10 @@ def integrate_post(path, payload):
             if data.get("status") == "ERROR" and "session" in data.get("message", "").lower():
                 debug_log("Session expired error detected in API response.")
                 st.session_state.pop("integrate_session", None)
+                try:
+                    os.remove("session.json")
+                except Exception:
+                    pass
             return data
         except Exception:
             return {"status": "ERROR", "message": f"Non-JSON response: {resp.text}"}
