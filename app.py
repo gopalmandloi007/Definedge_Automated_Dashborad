@@ -1,7 +1,7 @@
 import streamlit as st
 import importlib
 from session_utils import get_active_io
-from debug_utils import debug_log  # Debugging ke liye (optional but recommended)
+from debug_utils import debug_log  # For logging/debugging
 
 st.set_page_config(page_title="Gopal Mandloi Dashboard", layout="wide")
 st.title("Gopal Mandloi Integrate Autobot (Automated Mode)")
@@ -31,29 +31,24 @@ PAGES = {
 # --- SESSION MANAGEMENT ---
 io = get_active_io()
 if io is None:
-    # If not logged in, don't show any app UI except OTP/login.
-    st.stop()
+    st.stop()  # Show only login/OTP UI
 
 st.success("Session active! All API calls are automated.")
 
 # (Optional) Debug log viewer in sidebar
 with st.sidebar.expander("Show Debug Log"):
     if st.button("Refresh Debug Log"):
-        pass  # Button for user to refresh the log
+        pass
     try:
         with open("debug.log") as f:
-            log_lines = f.readlines()[-50:]  # Show last 50 lines for brevity
+            log_lines = f.readlines()[-50:]
             st.text("".join(log_lines))
     except Exception as e:
         st.info("Debug log not available yet.")
 
-# Sidebar for all pages
 selected_page = st.sidebar.selectbox("Select Page", list(PAGES.keys()))
-
-# Set io in session_state so every page can use it
 st.session_state["integrate_io"] = io
 
-# Dynamic import and call app() of the selected module
 try:
     page_module = importlib.import_module(PAGES[selected_page])
     if hasattr(page_module, "app"):
