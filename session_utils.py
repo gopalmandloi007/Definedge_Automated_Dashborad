@@ -8,6 +8,7 @@ from debug_utils import debug_log
 SESSION_KEY_NAME = "integrate_session"
 SESSION_FILE = "session.json"
 SESSION_EXPIRY_SECONDS = 84600  # 23.5 hours
+OTP_VALIDITY_SECONDS = 300      # 5 minutes
 
 def get_full_api_token():
     try:
@@ -49,11 +50,9 @@ def is_session_valid(session=None):
     return (now - session["created_at"]) < SESSION_EXPIRY_SECONDS
 
 def get_active_session():
-    # Try Streamlit session_state first
     session = st.session_state.get(SESSION_KEY_NAME)
     if session and is_session_valid(session):
         return session
-    # Try from file
     session = load_session_from_file()
     if session and is_session_valid(session):
         st.session_state[SESSION_KEY_NAME] = session
@@ -138,3 +137,72 @@ def logout_session():
         os.remove(SESSION_FILE)
     except Exception:
         pass
+
+# ---- OTP Management ----
+
+def send_otp_request(pin):
+    """
+    Send OTP only on manual request or after expiry. Save OTP token and send time in session_state.
+    """
+    api_token = get_full_api_token()
+    api_secret = st.secrets.get("INTEGRATE_API_SECRET")
+    if not api_token or not api_secret:
+        st.error("API token or API secret not set. Please check your secrets.toml and PIN.")
+        return {}
+
+    conn = ConnectToIntegrate()
+    try:
+        step1_resp = conn.login_step1(api_token=api_token, api_secret=api_secret)
+        debug_log(f"OTP Send (Login Step 1) Response: {step1_resp}")
+        # Save OTP token and time
+        otp_token = step1_resp.get("otp_token")
+        if otp_token:
+            st.session_state["otp_token"] = otp_token
+            st.session_state["otp_sent_time"] = time.time()
+        return step1_resp
+    except Exception as e:
+        debug_log(f"OTP Send failed: {e}")
+        st.error(f"Failed to send OTP: {e}")
+        return {}
+
+def verify_otp(otp_token, otp):
+    """
+    Verify OTP using broker API. Returns True if login succeeds, else False.
+    """
+    api_token = get_full_api_token()
+    api_secret = st.secrets.get("INTEGRATE_API_SECRET")
+    if not api_token or not api_secret:
+        st.error("API token or API secret not set. Please check your secrets.toml and PIN.")
+        return False
+
+    conn = ConnectToIntegrate()
+    try:
+        resp = conn.login_step2(otp)
+        debug_log(f"Login Step 2 Response: {resp}")
+        if resp and resp.get("stat") == "Ok":
+            # Save session info
+            uid, actid, api_session_key, ws_session_key = conn.get_session_keys()
+            session = {
+                "uid": uid,
+                "actid": actid,
+                "api_session_key": api_session_key,
+                "ws_session_key": ws_session_key,
+                "created_at": time.time()
+            }
+            save_session_to_file(session)
+            st.session_state[SESSION_KEY_NAME] = session
+            st.session_state["authenticated"] = True
+            debug_log("Login successful, session saved.")
+            return True
+        else:
+            return False
+    except Exception as e:
+        debug_log(f"OTP verification failed: {e}")
+        st.error(f"OTP verification failed: {e}")
+        return False
+
+def otp_expired():
+    sent_time = st.session_state.get("otp_sent_time")
+    if not sent_time:
+        return True
+    return (time.time() - sent_time) > OTP_VALIDITY_SECONDS
