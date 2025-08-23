@@ -32,9 +32,10 @@ def login_page():
     # If PIN entered, try to restore session or start login flow
     io = session_utils.get_active_io()
     if io:
-        st.session_state["authenticated"] = True
-        st.success("Login successful! You may now use the dashboard.")
-        st.experimental_rerun()
+        if not st.session_state.get("authenticated", False):
+            st.session_state["authenticated"] = True
+            st.experimental_rerun()
+        # After rerun, don't show login page again
         st.stop()
     else:
         st.stop()
