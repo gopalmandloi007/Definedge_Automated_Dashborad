@@ -9,14 +9,19 @@ SESSION_KEY_NAME = "integrate_session"
 SESSION_FILE = "session.json"
 
 def save_session_to_file(session):
+    # Only save non-secret keys!
+    session_copy = {k: v for k, v in session.items() if k in ["uid", "actid", "api_session_key", "ws_session_key", "created_at"]}
     with open(SESSION_FILE, "w") as f:
-        json.dump(session, f)
+        json.dump(session_copy, f)
 
 def load_session_from_file():
     if os.path.exists(SESSION_FILE):
         with open(SESSION_FILE, "r") as f:
             session = json.load(f)
-            return session
+            # Validate structure
+            keys = ["uid", "actid", "api_session_key", "ws_session_key", "created_at"]
+            if all(k in session for k in keys):
+                return session
     return None
 
 def is_session_valid(session=None):
@@ -27,9 +32,11 @@ def is_session_valid(session=None):
     if session is None:
         return False
     now = time.time()
-    return (now - session["created_at"]) < 86400
+    # Expiry: 23.5 hours (for broker), can adjust as per broker's session lifetime
+    return (now - session["created_at"]) < 84600
 
 def get_active_io():
+    # If session is valid, restore it
     if is_session_valid():
         sess = st.session_state.get(SESSION_KEY_NAME) or load_session_from_file()
         debug_log(f"Using saved session: {sess}")
@@ -43,6 +50,7 @@ def get_active_io():
         return login_and_store()
 
 def login_and_store():
+    # Only prompt OTP if session is not valid
     if is_session_valid():
         sess = st.session_state.get(SESSION_KEY_NAME) or load_session_from_file()
         debug_log("Session still valid, skipping login.")
@@ -53,6 +61,7 @@ def login_and_store():
         st.session_state[SESSION_KEY_NAME] = sess
         return io
 
+    # Secrets should only be in Streamlit secrets, never in code
     api_token = st.secrets["INTEGRATE_API_TOKEN"]
     api_secret = st.secrets["INTEGRATE_API_SECRET"]
     conn = ConnectToIntegrate()
