@@ -34,6 +34,7 @@ def login_page():
     if io:
         st.session_state["authenticated"] = True
         st.success("Login successful! You may now use the dashboard.")
+        st.experimental_rerun()
         st.stop()
     else:
         st.stop()
