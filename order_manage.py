@@ -9,7 +9,8 @@ def cancel_order(order_id):
     api_session_key = st.secrets.get("integrate_api_session_key", "")
     url = f"https://integrate.definedgesecurities.com/dart/v1/cancel/{order_id}"
     headers = {"Authorization": api_session_key}
-    resp = requests.get(url, headers=headers)
+    # Use POST for cancellation; change to GET only if your API requires it
+    resp = requests.post(url, headers=headers)
     try:
         result = resp.json()
     except Exception:
@@ -44,7 +45,7 @@ def show():
 
     # Track selection state — one per order_id
     if "order_selection" not in st.session_state:
-        st.session_state["order_selection"] = {}
+        st.session_state["order_selection"] = {order["order_id"]: False for order in open_orders}
     order_selection = st.session_state["order_selection"]
 
     # Utility: update selection for all visible orders
@@ -63,28 +64,38 @@ def show():
     col1, col2, col3, col4 = st.columns(4)
     if col1.button("Select All"):
         set_all(True)
+        st.session_state["order_selection"] = order_selection
+        st.rerun()
     if col2.button("Deselect All"):
         set_all(False)
+        st.session_state["order_selection"] = order_selection
+        st.rerun()
     if col3.button("Cancel Selected"):
         selected_ids = [oid for oid, sel in order_selection.items() if sel]
         if not selected_ids:
             st.warning("No orders selected.")
         else:
+            fail_count = 0
             for oid in selected_ids:
                 result = cancel_order(oid)
                 if result.get("status") == "ERROR":
                     st.error(f"Cancel Failed [{oid}]: {result.get('message','Error')}")
+                    fail_count += 1
                 else:
                     st.success(f"Order {oid} cancelled!")
+            st.session_state["order_selection"] = {oid: False for oid in order_selection}
             st.rerun()
     if col4.button("Cancel All"):
+        fail_count = 0
         for order in open_orders:
             oid = order["order_id"]
             result = cancel_order(oid)
             if result.get("status") == "ERROR":
                 st.error(f"Cancel Failed [{oid}]: {result.get('message','Error')}")
+                fail_count += 1
             else:
                 st.success(f"Order {oid} cancelled!")
+        st.session_state["order_selection"] = {oid: False for oid in order_selection}
         st.rerun()
 
     # Table columns to show
@@ -169,7 +180,6 @@ def show():
                     st.rerun()
                 if cancel:
                     st.session_state["modify_id"] = None
-                    # No rerun needed, just return
                     return
             return  # Only show form, not table
 
@@ -182,8 +192,8 @@ def show():
         columns = st.columns(col_widths)
         # Checkbox for selection
         selected = order_selection.get(order["order_id"], False)
-        columns[0].checkbox("", value=selected, key=f"select_{order['order_id']}")
-        order_selection[order["order_id"]] = st.session_state[f"select_{order['order_id']}"]
+        check_val = columns[0].checkbox("", value=selected, key=f"select_{order['order_id']}")
+        order_selection[order["order_id"]] = check_val
         # Show order fields
         for i, key in enumerate(cols):
             if key == "ltp":
@@ -197,7 +207,6 @@ def show():
         # Modify button
         if columns[-2].button("Modify", key=f"mod_btn_{order['order_id']}"):
             st.session_state["modify_id"] = order["order_id"]
-            # Do NOT call st.rerun() here for fast UI
         # Cancel button
         if columns[-1].button("Cancel", key=f"cancel_btn_{order['order_id']}"):
             result = cancel_order(order['order_id'])
