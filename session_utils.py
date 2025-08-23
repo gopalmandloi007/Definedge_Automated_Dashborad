@@ -2,7 +2,6 @@ import streamlit as st
 import time
 import json
 import os
-from integrate import ConnectToIntegrate, IntegrateOrders
 from debug_utils import debug_log
 
 SESSION_KEY_NAME = "integrate_session"
@@ -59,88 +58,19 @@ def get_active_session():
         return session
     return None
 
-def get_active_io(force_new_login=False):
-    if force_new_login:
-        logout_session()
-    session = get_active_session()
-    if session:
-        debug_log(f"Using saved session: {session}")
-        conn = ConnectToIntegrate()
-        conn.set_session_keys(session["uid"], session["actid"], session["api_session_key"], session["ws_session_key"])
-        io = IntegrateOrders(conn)
-        st.session_state["integrate_io"] = io
-        st.session_state[SESSION_KEY_NAME] = session
-        return io
-
-    api_token = get_full_api_token()
-    api_secret = st.secrets.get("INTEGRATE_API_SECRET")
-    if not api_token or not api_secret:
-        st.error("API token or API secret not set. Please check your secrets.toml and PIN.")
-        return None
-
-    conn = ConnectToIntegrate()
-    try:
-        step1_resp = conn.login_step1(api_token=api_token, api_secret=api_secret)
-        debug_log(f"Login Step 1 Response: {step1_resp}")
-        if not step1_resp or "message" not in step1_resp:
-            st.error("Broker API returned an empty or invalid response in Step 1. Please retry.")
-            return None
-        st.info(step1_resp.get("message", "OTP sent to your registered mobile/email."))
-        otp = st.text_input("Enter OTP sent to your mobile/email:", type="password")
-        if st.button("Submit OTP"):
-            try:
-                step2_resp = conn.login_step2(otp)
-                debug_log(f"Login Step 2 Response: {step2_resp}")
-                if not step2_resp:
-                    st.error("Broker API returned an empty or invalid response in Step 2. Please retry.")
-                    return None
-                st.success("Login successful!")
-                uid, actid, api_session_key, ws_session_key = conn.get_session_keys()
-                session = {
-                    "uid": uid,
-                    "actid": actid,
-                    "api_session_key": api_session_key,
-                    "ws_session_key": ws_session_key,
-                    "created_at": time.time()
-                }
-                save_session_to_file(session)
-                st.session_state[SESSION_KEY_NAME] = session
-                conn.set_session_keys(uid, actid, api_session_key, ws_session_key)
-                io = IntegrateOrders(conn)
-                st.session_state["integrate_io"] = io
-                st.session_state["authenticated"] = True
-                debug_log("Login successful, session saved.")
-                st.success("Login successful! You may now use the dashboard.")
-                st.stop()
-                return io
-            except ValueError as e:
-                debug_log(f"Login failed: {e}")
-                st.error("Broker API returned an empty or invalid response. Possible causes:\n- OTP already used/expired\n- Network/server error\n- Wrong secrets")
-                return None
-            except Exception as e:
-                debug_log(f"Login failed: {e}")
-                st.error(f"Login failed: {e}")
-                return None
-        return None
-    except Exception as e:
-        debug_log(f"Login step 1 failed: {e}")
-        st.error(f"Login failed: {e}")
-        return None
-
 def logout_session():
     st.session_state.pop("integrate_session", None)
-    st.session_state.pop("integrate_io", None)
-    st.session_state.pop("user_pin", None)
     st.session_state.pop("authenticated", None)
     st.session_state.pop("pin_entered", None)
+    st.session_state.pop("user_pin", None)
+    st.session_state.pop("otp_token", None)
+    st.session_state.pop("otp_sent_time", None)
     try:
         os.remove(SESSION_FILE)
     except Exception:
         pass
 
-# ---- OTP Management ----
-
-def send_otp_request(pin):
+def send_otp_request():
     """
     Send OTP only on manual request or after expiry. Save OTP token and send time in session_state.
     """
@@ -149,16 +79,17 @@ def send_otp_request(pin):
     if not api_token or not api_secret:
         st.error("API token or API secret not set. Please check your secrets.toml and PIN.")
         return {}
-
-    conn = ConnectToIntegrate()
+    payload = {"api_token": api_token, "api_secret": api_secret}
+    url = "https://integrate.definedgesecurities.com/dart/v1/login/step1"
     try:
-        step1_resp = conn.login_step1(api_token=api_token, api_secret=api_secret)
-        debug_log(f"OTP Send (Login Step 1) Response: {step1_resp}")
-        otp_token = step1_resp.get("otp_token")
+        resp = requests.post(url, json=payload, timeout=15)
+        debug_log(f"OTP Send (Login Step 1) Response: {resp.text}")
+        data = resp.json()
+        otp_token = data.get("otp_token")
         if otp_token:
             st.session_state["otp_token"] = otp_token
             st.session_state["otp_sent_time"] = time.time()
-        return step1_resp
+        return data
     except Exception as e:
         debug_log(f"OTP Send failed: {e}")
         st.error(f"Failed to send OTP: {e}")
@@ -167,35 +98,24 @@ def send_otp_request(pin):
 def verify_otp(otp_token, otp):
     """
     Verify OTP using broker API. Returns True if login succeeds, else False.
-    Robust error handling for blank/invalid response.
     """
     api_token = get_full_api_token()
     api_secret = st.secrets.get("INTEGRATE_API_SECRET")
     if not api_token or not api_secret:
         st.error("API token or API secret not set. Please check your secrets.toml and PIN.")
         return False
-
-    conn = ConnectToIntegrate()
+    payload = {"otp_token": otp_token, "otp": otp, "api_token": api_token, "api_secret": api_secret}
+    url = "https://integrate.definedgesecurities.com/dart/v1/login/step2"
     try:
-        resp = conn.login_step2(otp)
-        debug_log(f"Login Step 2 Response: {resp}")
-        if not resp:
-            st.error("No response from broker API. OTP may be expired, already used, or server/network issue.")
-            return False
-        if isinstance(resp, str):
-            try:
-                import json
-                resp = json.loads(resp)
-            except Exception as e:
-                st.error(f"Broker API returned invalid response: {resp}")
-                return False
-        if resp.get("stat") == "Ok":
-            uid, actid, api_session_key, ws_session_key = conn.get_session_keys()
+        resp = requests.post(url, json=payload, timeout=15)
+        debug_log(f"OTP Verify (Login Step 2) Response: {resp.text}")
+        data = resp.json()
+        if data.get("stat") == "Ok":
             session = {
-                "uid": uid,
-                "actid": actid,
-                "api_session_key": api_session_key,
-                "ws_session_key": ws_session_key,
+                "uid": data.get("uid"),
+                "actid": data.get("actid"),
+                "api_session_key": data.get("api_session_key"),
+                "ws_session_key": data.get("ws_session_key"),
                 "created_at": time.time()
             }
             save_session_to_file(session)
@@ -204,9 +124,10 @@ def verify_otp(otp_token, otp):
             debug_log("Login successful, session saved.")
             return True
         else:
-            st.error(f"OTP verification failed: {resp.get('message', 'Invalid OTP or expired. Please regenerate OTP and try again.')}")
+            st.error(f"OTP verification failed: {data.get('message', 'Invalid OTP or expired. Please regenerate OTP and try again.')}")
             return False
     except Exception as e:
+        debug_log(f"OTP verification failed: {e}")
         st.error(f"OTP verification failed: {e}")
         return False
 
