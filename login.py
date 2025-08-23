@@ -47,7 +47,7 @@ def login_page():
                 st.session_state["user_pin"] = pin
                 st.session_state["pin_entered"] = True
                 st.experimental_rerun()
-                return  # Prevents further execution after rerun
+                return
             else:
                 st.error("Invalid PIN. Please enter exactly 4 alphanumeric characters.")
         st.stop()
