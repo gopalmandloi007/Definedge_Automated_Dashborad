@@ -9,7 +9,6 @@ SESSION_KEY_NAME = "integrate_session"
 SESSION_FILE = "session.json"
 
 def get_full_api_token():
-    # Reads partial from secrets, last 4 digits from PIN
     partial = st.secrets["INTEGRATE_API_TOKEN_PARTIAL"]
     pin = st.session_state.get("user_pin", "")
     return partial + pin if len(pin) == 4 else None
@@ -83,7 +82,8 @@ def get_active_io():
                 st.session_state["integrate_io"] = io
                 debug_log("Login successful, session saved.")
                 st.session_state["authenticated"] = True
-                st.experimental_rerun()
+                st.success("Login successful! You may now use the dashboard.")
+                st.stop()
                 return io
             except Exception as e:
                 debug_log(f"Login failed: {e}")
