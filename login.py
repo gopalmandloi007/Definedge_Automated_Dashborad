@@ -18,6 +18,27 @@ def login_page():
         st.info("Already logged in!")
         st.stop()
 
+    # If a valid previous session exists, offer choice to continue or start new login
+    previous_session = session_utils.get_active_session()
+    if previous_session and not st.session_state.get("force_new_login", False):
+        st.success("Previous session is active.")
+        col1, col2 = st.columns(2)
+        if col1.button("Continue with Previous Session"):
+            st.session_state["integrate_session"] = previous_session
+            st.session_state["authenticated"] = True
+            st.success("Continued with previous session.")
+            st.stop()
+        if col2.button("Start New Login (Logout & Re-Login with PIN and OTP)"):
+            session_utils.logout_session()
+            st.session_state["force_new_login"] = True
+            st.experimental_rerun()
+            return
+        st.stop()
+
+    # Clear force_new_login flag after use
+    if st.session_state.get("force_new_login", False):
+        st.session_state["force_new_login"] = False
+
     # PIN entry
     if not st.session_state.get("pin_entered", False):
         pin = st.text_input("Enter your PIN (last 4 digits of your API token):", max_chars=4, type="password")
@@ -32,12 +53,12 @@ def login_page():
         st.stop()
 
     # If PIN entered, try to restore session or start login flow
-    io = session_utils.get_active_io()
+    io = session_utils.get_active_io(force_new_login=False)
     if io:
         if not st.session_state.get("authenticated", False):
             st.session_state["authenticated"] = True
             st.experimental_rerun()
-            return  # Prevents further execution after rerun
+            return
         st.stop()
     else:
         st.stop()
