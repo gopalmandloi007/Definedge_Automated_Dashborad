@@ -9,9 +9,19 @@ SESSION_KEY_NAME = "integrate_session"
 SESSION_FILE = "session.json"
 
 def get_full_api_token():
-    partial = st.secrets["INTEGRATE_API_TOKEN"]
+    try:
+        partial = st.secrets["INTEGRATE_API_TOKEN"]
+    except KeyError:
+        st.error("INTEGRATE_API_TOKEN not found in .streamlit/secrets.toml. Please add it with the first 32 characters of your API token.")
+        return None
     pin = st.session_state.get("user_pin", "")
-    return partial + pin if len(pin) == 4 else None
+    if len(partial) != 32:
+        st.error("INTEGRATE_API_TOKEN must be exactly 32 characters.")
+        return None
+    if len(pin) != 4:
+        st.error("PIN must be exactly 4 characters.")
+        return None
+    return partial + pin
 
 def save_session_to_file(session):
     session_copy = {k: v for k, v in session.items() if k in ["uid", "actid", "api_session_key", "ws_session_key", "created_at"]}
