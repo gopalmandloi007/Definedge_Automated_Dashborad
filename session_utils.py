@@ -7,6 +7,7 @@ from debug_utils import debug_log
 
 SESSION_KEY_NAME = "integrate_session"
 SESSION_FILE = "session.json"
+SESSION_EXPIRY_SECONDS = 84600  # 23.5 hours
 
 def get_full_api_token():
     try:
@@ -45,18 +46,31 @@ def is_session_valid(session=None):
     if session is None:
         return False
     now = time.time()
-    return (now - session["created_at"]) < 84600  # 23.5 hours
+    return (now - session["created_at"]) < SESSION_EXPIRY_SECONDS
+
+def get_active_session():
+    # Try Streamlit session_state first
+    session = st.session_state.get(SESSION_KEY_NAME)
+    if session and is_session_valid(session):
+        return session
+    # Try from file
+    session = load_session_from_file()
+    if session and is_session_valid(session):
+        # Also update Streamlit state for consistency
+        st.session_state[SESSION_KEY_NAME] = session
+        return session
+    return None
 
 def get_active_io():
     # Try to restore session if valid
-    if is_session_valid():
-        sess = st.session_state.get(SESSION_KEY_NAME) or load_session_from_file()
-        debug_log(f"Using saved session: {sess}")
+    session = get_active_session()
+    if session:
+        debug_log(f"Using saved session: {session}")
         conn = ConnectToIntegrate()
-        conn.set_session_keys(sess["uid"], sess["actid"], sess["api_session_key"], sess["ws_session_key"])
+        conn.set_session_keys(session["uid"], session["actid"], session["api_session_key"], session["ws_session_key"])
         io = IntegrateOrders(conn)
         st.session_state["integrate_io"] = io
-        st.session_state[SESSION_KEY_NAME] = sess
+        st.session_state[SESSION_KEY_NAME] = session
         return io
 
     # If not valid, start login flow (but only after PIN entered)
@@ -70,12 +84,18 @@ def get_active_io():
     try:
         step1_resp = conn.login_step1(api_token=api_token, api_secret=api_secret)
         debug_log(f"Login Step 1 Response: {step1_resp}")
+        if not step1_resp or "message" not in step1_resp:
+            st.error("Broker API returned an empty or invalid response in Step 1. Please retry.")
+            return None
         st.info(step1_resp.get("message", "OTP sent to your registered mobile/email."))
         otp = st.text_input("Enter OTP sent to your mobile/email:", type="password")
         if st.button("Submit OTP"):
             try:
                 step2_resp = conn.login_step2(otp)
                 debug_log(f"Login Step 2 Response: {step2_resp}")
+                if not step2_resp:
+                    st.error("Broker API returned an empty or invalid response in Step 2. Please retry.")
+                    return None
                 st.success("Login successful!")
                 uid, actid, api_session_key, ws_session_key = conn.get_session_keys()
                 session = {
