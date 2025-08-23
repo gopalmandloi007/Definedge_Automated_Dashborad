@@ -154,7 +154,6 @@ def send_otp_request(pin):
     try:
         step1_resp = conn.login_step1(api_token=api_token, api_secret=api_secret)
         debug_log(f"OTP Send (Login Step 1) Response: {step1_resp}")
-        # Save OTP token and time
         otp_token = step1_resp.get("otp_token")
         if otp_token:
             st.session_state["otp_token"] = otp_token
@@ -168,6 +167,7 @@ def send_otp_request(pin):
 def verify_otp(otp_token, otp):
     """
     Verify OTP using broker API. Returns True if login succeeds, else False.
+    Robust error handling for blank/invalid response.
     """
     api_token = get_full_api_token()
     api_secret = st.secrets.get("INTEGRATE_API_SECRET")
@@ -179,8 +179,17 @@ def verify_otp(otp_token, otp):
     try:
         resp = conn.login_step2(otp)
         debug_log(f"Login Step 2 Response: {resp}")
-        if resp and resp.get("stat") == "Ok":
-            # Save session info
+        if not resp:
+            st.error("No response from broker API. OTP may be expired, already used, or server/network issue.")
+            return False
+        if isinstance(resp, str):
+            try:
+                import json
+                resp = json.loads(resp)
+            except Exception as e:
+                st.error(f"Broker API returned invalid response: {resp}")
+                return False
+        if resp.get("stat") == "Ok":
             uid, actid, api_session_key, ws_session_key = conn.get_session_keys()
             session = {
                 "uid": uid,
@@ -195,9 +204,9 @@ def verify_otp(otp_token, otp):
             debug_log("Login successful, session saved.")
             return True
         else:
+            st.error(f"OTP verification failed: {resp.get('message', 'Invalid OTP or expired. Please regenerate OTP and try again.')}")
             return False
     except Exception as e:
-        debug_log(f"OTP verification failed: {e}")
         st.error(f"OTP verification failed: {e}")
         return False
 
