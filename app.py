@@ -1,73 +1,152 @@
-# app.py
 import streamlit as st
-import importlib
-import session_utils
-from login import login_page
+import requests
+import json
+import websocket
+import threading
 
-st.set_page_config(page_title="Gopal Mandloi Dashboard", layout="wide")
-st.title("Gopal Mandloi Integrate Autobot (Automated Mode)")
+# ==============================
+# CONFIGURATION
+# ==============================
+BASE_URL = "https://api.definedgesecurities.com"
+LOGIN_URL = f"{BASE_URL}/auth/token"
+PLACE_ORDER_URL = f"{BASE_URL}/orders"
+HOLDINGS_URL = f"{BASE_URL}/holdings"
+POSITIONS_URL = f"{BASE_URL}/positions"
+QUOTES_URL = f"{BASE_URL}/quotes"
 
-# --- SESSION GATEKEEPER ---
-session = session_utils.get_active_session()
-if "authenticated" not in st.session_state or not st.session_state.get("authenticated", False):
-    login_page()
-    st.stop()
+st.set_page_config(page_title="Definedge Trading App", layout="wide")
 
-st.success("Session active! All API calls are automated.")
+# ==============================
+# SESSION STATE for TOKEN mgmt
+# ==============================
+if "access_token" not in st.session_state:
+    st.session_state.access_token = None
 
-PAGES = {
-    "Holdings": "holdings",              # create file holdings.py if needed
-    "Historical Manager": "historical_page",  # we'll provide a Streamlit wrapper below if required
-    "Tradebot": "tradebot",              # optional
-}
 
-selected_page = st.sidebar.selectbox("Select Page", list(PAGES.keys()))
+# ==============================
+# LOGIN FUNCTION
+# ==============================
+def login(client_id, client_secret, pin):
+    try:
+        payload = {
+            "client_id": client_id,
+            "client_secret": client_secret,
+            "pin": pin
+        }
+        res = requests.post(LOGIN_URL, json=payload)
+        if res.status_code == 200:
+            token = res.json().get("access_token")
+            st.session_state.access_token = token
+            st.success("✅ Login successful")
+        else:
+            st.error(f"Login failed: {res.text}")
+    except Exception as e:
+        st.error(f"Error: {e}")
 
-# Expose IntegrateOrders object
-try:
-    io = session_utils.get_active_io()
-    st.session_state["integrate_io"] = io
-except Exception as e:
-    st.error("Cannot build Integrate IO object: " + str(e))
-    st.stop()
 
-# For this minimal repo we will map "Historical Manager" directly to a small UI below if selected
-if selected_page == "Historical Manager":
-    st.header("Historical Data Manager")
-    from masterfile_handler import batch_symbols
-    from historical_handler import update_all_from_master
-    session_key = session.get("api_session_key")
-    seg = st.selectbox("Master Segment", ["NSE_CASH", "NSE_FNO", "ALL"])
-    batch_size = st.number_input("Batch size", min_value=50, max_value=1000, value=500, step=50)
-    timeframe = st.selectbox("Timeframe", ["day", "minute"])
-    start_date = st.text_input("Start date (ddMMyyyy or ddMMyyyyHHMM)", "01012020")
+# ==============================
+# PLACE ORDER FUNCTION
+# ==============================
+def place_order(symbol, qty, side, order_type="MARKET", product="CNC"):
+    headers = {"Authorization": f"Bearer {st.session_state.access_token}"}
+    payload = {
+        "symbol": symbol,
+        "qty": qty,
+        "side": side,            # BUY or SELL
+        "type": order_type,      # MARKET / LIMIT
+        "product": product       # CNC / MIS etc.
+    }
+    res = requests.post(PLACE_ORDER_URL, headers=headers, json=payload)
+    return res.json()
 
-    if st.button("Run update for next batch (from master)"):
-        progress_bar = st.progress(0)
-        batch_iter = batch_symbols(seg, batch_size)
 
-        try:
-            first_batch = next(batch_iter)
-        except StopIteration:
-            st.info("No symbols found in master. Please download master first.")
-            first_batch = []
+# ==============================
+# FETCH HOLDINGS & POSITIONS
+# ==============================
+def get_holdings():
+    headers = {"Authorization": f"Bearer {st.session_state.access_token}"}
+    res = requests.get(HOLDINGS_URL, headers=headers)
+    return res.json()
 
-        if first_batch:
-            total = len(first_batch)
-            done = 0
+def get_positions():
+    headers = {"Authorization": f"Bearer {st.session_state.access_token}"}
+    res = requests.get(POSITIONS_URL, headers=headers)
+    return res.json()
 
-            def progress_cb(token, idx, total_local, status, rows):
-                nonlocal_progress = idx   # track inside closure
-                progress_bar.progress(min(1.0, nonlocal_progress / total))
-                st.write(f"{idx}/{total} — token={token} status={status} rows={rows}")
 
-            results = update_all_from_master(
-                session_key,
-                master_segment=seg,
-                batch_size=batch_size,
-                timeframe=timeframe,
-                start_date=start_date,
-                sleep_per=0.06,
-                progress=progress_cb
-            )
-            st.success("Batch update requested (check logs above).")
+# ==============================
+# QUOTES (Market Data)
+# ==============================
+def get_quotes(symbol):
+    headers = {"Authorization": f"Bearer {st.session_state.access_token}"}
+    res = requests.get(f"{QUOTES_URL}?symbol={symbol}", headers=headers)
+    return res.json()
+
+
+# ==============================
+# WEBSOCKET HANDLER
+# ==============================
+def on_message(ws, message):
+    data = json.loads(message)
+    st.session_state.ws_data = data  # Save incoming ticks in session_state
+
+def on_open(ws):
+    st.success("🔗 WebSocket connected")
+
+def start_ws():
+    ws_url = "wss://stream.definedgesecurities.com"  # replace with actual WS url
+    ws = websocket.WebSocketApp(ws_url,
+                                on_message=on_message,
+                                on_open=on_open)
+    ws.run_forever()
+
+# ==============================
+# STREAMLIT UI
+# ==============================
+st.title("📈 Definedge Trading App")
+
+# ---- Login Section ----
+with st.expander("🔑 Login"):
+    client_id = st.text_input("Client ID")
+    client_secret = st.text_input("Client Secret", type="password")
+    pin = st.text_input("PIN", type="password")
+    if st.button("Login"):
+        login(client_id, client_secret, pin)
+
+# ---- Order Placement ----
+if st.session_state.access_token:
+    st.subheader("📝 Place Order")
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        symbol = st.text_input("Symbol", "NSE:RELIANCE")
+    with col2:
+        qty = st.number_input("Quantity", value=1, step=1)
+    with col3:
+        side = st.selectbox("Side", ["BUY", "SELL"])
+
+    if st.button("Place Order"):
+        result = place_order(symbol, qty, side)
+        st.write(result)
+
+    # ---- Holdings & Positions ----
+    st.subheader("📊 Holdings / Positions")
+    c1, c2 = st.columns(2)
+    with c1:
+        if st.button("Get Holdings"):
+            st.json(get_holdings())
+    with c2:
+        if st.button("Get Positions"):
+            st.json(get_positions())
+
+    # ---- Quotes ----
+    st.subheader("💹 Market Quotes")
+    q_symbol = st.text_input("Quote Symbol", "NSE:INFY")
+    if st.button("Get Quote"):
+        st.json(get_quotes(q_symbol))
+
+    # ---- WebSocket Live Ticks ----
+    st.subheader("🔴 Live Market Feed (WebSocket)")
+    if st.button("Start WebSocket"):
+        threading.Thread(target=start_ws, daemon=True).start()
+    if "ws_data" in st.session_state:
+        st.write(st.session_state.ws_data)
