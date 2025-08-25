@@ -1,11 +1,4 @@
-"""
-masterfile_handler.py
-
-- download_master(segment) -> downloads the master zip, extracts csv into data/master_file/{segment}_{YYYYMMDD}.csv
-- load_master(segment) -> returns pandas DataFrame (downloads if today's not present)
-- get_symbols_from_master(segment, limit=None) -> yields rows with TOKEN, TRADINGSYM, SYMBOL, ISIN, LOTSIZE, etc.
-- batch_symbols(segment, batch_size) -> yields batches of trading-symbol dicts for batching
-"""
+# masterfile_handler.py
 import os
 import zipfile
 import io
@@ -14,6 +7,8 @@ from typing import List, Dict, Iterator, Optional
 
 import requests
 import pandas as pd
+
+from debug_utils import debug_log
 
 DATA_DIR = os.path.join("data", "master_file")
 os.makedirs(DATA_DIR, exist_ok=True)
@@ -28,7 +23,6 @@ MASTER_FILE_URLS = {
     "ALL": "https://app.definedgesecurities.com/public/allmaster.zip"
 }
 
-# nominal column names according to docs (CSV without headers; we will map by count)
 COLUMN_NAMES = [
     "SEGMENT", "TOKEN", "SYMBOL", "TRADINGSYM", "INSTRUMENT_TYPE", "EXPIRY",
     "TICKSIZE", "LOTSIZE", "OPTIONTYPE", "STRIKE", "PRICEPREC", "MULTIPLIER",
@@ -45,19 +39,20 @@ def download_master(segment: str = "NSE_CASH", force: bool = False) -> str:
     Download the master zip for `segment`, extract first csv inside and save as
     data/master_file/{segment}_{YYYYMMDD}.csv. Returns the saved filepath.
     """
+    debug_log(f"download_master(segment={segment}, force={force})")
     if segment not in MASTER_FILE_URLS:
         raise ValueError(f"Unknown segment '{segment}'. Valid: {list(MASTER_FILE_URLS.keys())}")
 
     out_path = os.path.join(DATA_DIR, f"{segment}_{_today_tag()}.csv")
     if os.path.exists(out_path) and not force:
+        debug_log(f"Master already present: {out_path}")
         return out_path
 
     url = MASTER_FILE_URLS[segment]
-    resp = requests.get(url, timeout=30)
+    resp = requests.get(url, timeout=60)
     resp.raise_for_status()
 
     with zipfile.ZipFile(io.BytesIO(resp.content)) as zf:
-        # pick first CSV inside zip
         names = [n for n in zf.namelist() if n.lower().endswith(".csv")]
         if not names:
             raise RuntimeError("No CSV file found inside master zip")
@@ -65,20 +60,17 @@ def download_master(segment: str = "NSE_CASH", force: bool = False) -> str:
         extracted = zf.read(csv_name)
         with open(out_path, "wb") as f:
             f.write(extracted)
-
+    debug_log(f"Saved master to {out_path}")
     return out_path
 
 
 def _find_latest_master(segment: str) -> Optional[str]:
-    # find file with today's date or any existing file for that segment
     candidate_today = os.path.join(DATA_DIR, f"{segment}_{_today_tag()}.csv")
     if os.path.exists(candidate_today):
         return candidate_today
-    # fallback to any file for that segment
     files = [os.path.join(DATA_DIR, f) for f in os.listdir(DATA_DIR) if f.startswith(segment + "_") and f.endswith(".csv")]
     if not files:
         return None
-    # pick newest by mtime
     files.sort(key=os.path.getmtime, reverse=True)
     return files[0]
 
@@ -94,36 +86,44 @@ def load_master(segment: str = "NSE_CASH", auto_download: bool = True) -> pd.Dat
     if not path:
         raise FileNotFoundError(f"No master file found for segment {segment} in {DATA_DIR}")
 
-    # File is CSV without header - we will try to load and assign column names.
     df = pd.read_csv(path, header=None, dtype=str, encoding="utf-8", low_memory=False)
-    # if number of columns >= expected, assign first N names
     if df.shape[1] >= len(COLUMN_NAMES):
         df = df.iloc[:, : len(COLUMN_NAMES)]
         df.columns = COLUMN_NAMES
     else:
-        # fallback: name generically
         df.columns = [f"COL{i}" for i in range(df.shape[1])]
+    debug_log(f"Loaded master {path} with shape {df.shape}")
     return df
 
 
 def get_symbols_from_master(segment: str = "NSE_CASH", limit: Optional[int] = None) -> List[Dict]:
     """
-    Return list of dicts with keys: TOKEN, SYMBOL, TRADINGSYM, ISIN, LOTSIZE, SEGMENT
+    Return list of dicts with keys: segment, token, symbol, tradingsymbol, isin, lotsize
     """
     df = load_master(segment)
     out = []
     for _, row in df.iterrows():
+        token = str(row.get("TOKEN", "")).strip()
+        lotsize = 1
+        try:
+            lotsize_raw = row.get("LOTSIZE", None)
+            if pd.notna(lotsize_raw) and str(lotsize_raw).strip().isdigit():
+                lotsize = int(str(lotsize_raw).strip())
+        except Exception:
+            lotsize = 1
+
         rec = {
-            "segment": row.get("SEGMENT", segment),
-            "token": str(row.get("TOKEN", "")).strip(),
+            "segment": str(row.get("SEGMENT", segment)).strip(),
+            "token": token,
             "symbol": str(row.get("SYMBOL", "")).strip(),
             "tradingsymbol": str(row.get("TRADINGSYM", "")).strip(),
             "isin": str(row.get("ISIN", "")).strip(),
-            "lotsize": int(row.get("LOTSIZE", 1)) if row.get("LOTSIZE") and str(row.get("LOTSIZE")).isdigit() else 1
+            "lotsize": lotsize
         }
         out.append(rec)
         if limit and len(out) >= limit:
             break
+    debug_log(f"get_symbols_from_master(segment={segment}, limit={limit}) -> {len(out)} symbols")
     return out
 
 
@@ -133,11 +133,9 @@ def batch_symbols(segment: str = "NSE_CASH", batch_size: int = 500) -> Iterator[
     """
     symbols = get_symbols_from_master(segment)
     for i in range(0, len(symbols), batch_size):
-        yield symbols[i : i + batch_size]
+        yield symbols[i: i + batch_size]
 
 
 if __name__ == "__main__":
-    # quick demo
     df = load_master("NSE_CASH")
     print("Loaded master:", df.shape)
-    print("Sample:", df.head().to_dict(orient="records")[:3])
