@@ -41,23 +41,33 @@ if selected_page == "Historical Manager":
     batch_size = st.number_input("Batch size", min_value=50, max_value=1000, value=500, step=50)
     timeframe = st.selectbox("Timeframe", ["day", "minute"])
     start_date = st.text_input("Start date (ddMMyyyy or ddMMyyyyHHMM)", "01012020")
+
     if st.button("Run update for next batch (from master)"):
         progress_bar = st.progress(0)
         batch_iter = batch_symbols(seg, batch_size)
-        # we'll run just first batch interactively
+
         try:
             first_batch = next(batch_iter)
         except StopIteration:
             st.info("No symbols found in master. Please download master first.")
             first_batch = []
+
         if first_batch:
             total = len(first_batch)
             done = 0
+
             def progress_cb(token, idx, total_local, status, rows):
-                nonlocal done
-                done = idx
-                progress_bar.progress(min(1.0, done/total))
+                nonlocal_progress = idx   # track inside closure
+                progress_bar.progress(min(1.0, nonlocal_progress / total))
                 st.write(f"{idx}/{total} — token={token} status={status} rows={rows}")
-            results = update_all_from_master(session_key, master_segment=seg, batch_size=batch_size, timeframe=timeframe, start_date=start_date, sleep_per=0.06, progress=progress_cb)
-            # results is a generator; we only processed first batch in progress_cb above
+
+            results = update_all_from_master(
+                session_key,
+                master_segment=seg,
+                batch_size=batch_size,
+                timeframe=timeframe,
+                start_date=start_date,
+                sleep_per=0.06,
+                progress=progress_cb
+            )
             st.success("Batch update requested (check logs above).")
