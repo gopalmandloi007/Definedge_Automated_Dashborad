@@ -6,7 +6,7 @@ class ConnectToIntegrate:
         self.actid = None
         self.api_session_key = None
         self.ws_session_key = None
-        self.otp_token = None  # for step 2
+        self.otp_token = None
 
     def login_step1(self, api_token, api_secret):
         url = f"https://signin.definedgesecurities.com/auth/realms/debroking/dsbpkc/login/{api_token}"
@@ -23,7 +23,7 @@ class ConnectToIntegrate:
         resp = requests.post(url, json=json_data)
         resp.raise_for_status()
         data = resp.json()
-        # Save session keys for use
+        # Save session keys
         self.uid = data.get("uid")
         self.actid = data.get("actid")
         self.api_session_key = data.get("api_session_key")
@@ -42,6 +42,17 @@ class ConnectToIntegrate:
 class IntegrateOrders:
     def __init__(self, conn):
         self.conn = conn
+
     def holdings(self):
-        # Dummy for now, real API calls should use self.conn.api_session_key in headers
-        return {"data": [{"dp_qty": 10, "avg_buy_price": 100, "tradingsymbol": [{"exchange": "NSE", "tradingsymbol": "SBIN", "token": "123", "isin": "IN1234567890"}]}]}
+        # Example response
+        return {
+            "data": [
+                {
+                    "dp_qty": 10,
+                    "avg_buy_price": 100,
+                    "tradingsymbol": [
+                        {"exchange": "NSE", "tradingsymbol": "SBIN", "token": "123", "isin": "IN1234567890"}
+                    ],
+                }
+            ]
+        }
