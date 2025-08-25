@@ -1,103 +1,127 @@
 import json
 import threading
-import websocket
 import time
-from utils import place_order   # your REST execution
+import websocket
+import streamlit as st
+from utils import integrate_post  # use your REST order function
 
 WS_URL = "wss://trade.definedgesecurities.com/NorenWSTRTP/"
 
 class WSManager:
-    def __init__(self, uid, actid, susertoken, source="TRTP"):
-        self.uid = uid
-        self.actid = actid
-        self.susertoken = susertoken
-        self.source = source
+    def __init__(self, conn):
+        self.conn = conn   # ConnectToIntegrate instance
         self.ws = None
         self.connected = False
-        self.subscribed = set()
-        self.positions_state = {}  # symbol → dict(state machine info)
+        self.positions_state = {}  # symbol → dict(state machine)
 
     def connect(self):
-        def _on_open(ws):
-            login_msg = {
-                "t": "c",
-                "uid": self.uid,
-                "actid": self.actid,
-                "susertoken": self.susertoken,
-                "source": self.source
-            }
-            ws.send(json.dumps(login_msg))
+        """Connect to Definedge WS"""
+        uid, actid, _, susertoken = self.conn.get_session_keys()
+        if not susertoken:
+            raise Exception("❌ No WS session key, please login again.")
 
-        def _on_message(ws, msg):
-            data = json.loads(msg)
+        def on_open(ws):
+            payload = {"t": "c", "uid": uid, "actid": actid,
+                       "source": "TRTP", "susertoken": susertoken}
+            ws.send(json.dumps(payload))
+            st.toast("✅ WebSocket connected")
+
+        def on_message(ws, message):
+            data = json.loads(message)
             self.handle_message(data)
 
-        def _on_close(ws, code, reason):
-            self.connected = False
-            print("WS closed", reason)
+        def on_error(ws, err): st.error(f"WS Error: {err}")
+        def on_close(ws, *a): st.warning("⚠️ WS Closed")
 
         self.ws = websocket.WebSocketApp(
-            WS_URL,
-            on_open=_on_open,
-            on_message=_on_message,
-            on_close=_on_close
+            WS_URL, on_open=on_open, on_message=on_message,
+            on_error=on_error, on_close=on_close
         )
         threading.Thread(target=self.ws.run_forever, daemon=True).start()
-        self.connected = True
 
-        # heartbeat thread
-        def _heartbeat():
-            while self.connected:
-                try:
+        # Heartbeat thread
+        threading.Thread(target=self._heartbeat, daemon=True).start()
+
+    def _heartbeat(self):
+        while True:
+            try:
+                if self.ws and self.connected:
                     self.ws.send(json.dumps({"t": "h"}))
-                except:
-                    break
-                time.sleep(50)
-        threading.Thread(target=_heartbeat, daemon=True).start()
+            except:
+                pass
+            time.sleep(50)
 
-    def subscribe_touchline(self, scriplist):
-        msg = {"t": "t", "k": "#".join(scriplist)}
+    def subscribe_touchline(self, symbols):
+        """Subscribe for live LTP"""
+        if not self.ws: return
+        msg = {"t": "t", "k": "#".join(symbols)}
         self.ws.send(json.dumps(msg))
-        self.subscribed.update(scriplist)
-
-    def unsubscribe(self, scriplist):
-        msg = {"t": "u", "k": "#".join(scriplist)}
-        self.ws.send(json.dumps(msg))
-        self.subscribed.difference_update(scriplist)
 
     def handle_message(self, data):
         t = data.get("t")
-        if t in ("tf", "df"):  # feed
+        if t in ("tf", "df"):
             symbol = f"{data['e']}|{data['tk']}"
             ltp = float(data.get("lp", 0))
             self.evaluate_triggers(symbol, ltp)
+        elif t == "ck":
+            self.connected = True
+        elif t == "om":
+            st.info(f"📡 Order Update: {data}")
+
+    # ----------------------
+    # TRIGGER ENGINE
+    # ----------------------
+    def add_position(self, symbol, entry, qty, sl_pct, targets_pct):
+        """Initialize SL/Target strategy for a position"""
+        self.positions_state[symbol] = {
+            "entry": entry,
+            "remaining_qty": qty,
+            "sl": entry * (1 - sl_pct/100),
+            "targets": [entry*(1+t/100) for t in targets_pct],
+            "achieved": 0,
+        }
 
     def evaluate_triggers(self, symbol, ltp):
         state = self.positions_state.get(symbol)
         if not state: return
 
         entry = state["entry"]
-        targets = state["targets"]
         sl = state["sl"]
-        rem_qty = state["remaining_qty"]
+        rem = state["remaining_qty"]
+        targets = state["targets"]
+        ach = state["achieved"]
 
-        # check stop loss
-        if ltp <= sl and rem_qty > 0:
-            print(f"[{symbol}] Stoploss hit at {ltp}, selling {rem_qty}")
-            place_order(symbol, rem_qty, "SELL", "MKT")  # REST API call
+        # Stoploss
+        if ltp <= sl and rem > 0:
+            st.error(f"🛑 SL hit for {symbol} at {ltp}, selling {rem}")
+            self.execute_order(symbol, rem)
             state["remaining_qty"] = 0
             return
 
-        # check targets
-        achieved = state["achieved_targets"]
-        if achieved < len(targets) and ltp >= targets[achieved]:
-            sell_qty = rem_qty // (len(targets) - achieved)
-            print(f"[{symbol}] Target-{achieved+1} hit at {ltp}, selling {sell_qty}")
-            place_order(symbol, sell_qty, "SELL", "MKT")
+        # Target check
+        if ach < len(targets) and ltp >= targets[ach]:
+            sell_qty = rem // (len(targets) - ach)
+            st.success(f"🎯 Target-{ach+1} hit at {ltp}, selling {sell_qty}")
+            self.execute_order(symbol, sell_qty)
             state["remaining_qty"] -= sell_qty
-            state["achieved_targets"] += 1
-            # trail SL rule
-            if achieved == 0:
+            state["achieved"] += 1
+            # Trail SL rule
+            if ach == 0:
                 state["sl"] = entry
             else:
-                state["sl"] = targets[achieved-1]
+                state["sl"] = targets[ach-1]
+
+    def execute_order(self, symbol, qty):
+        payload = {
+            "variety": "REGULAR",
+            "symbol_id": symbol,
+            "qty": qty,
+            "side": "SELL",
+            "ordertype": "MKT",
+            "product": "CNC",
+        }
+        try:
+            resp = integrate_post("/placeorder", payload)
+            st.write(f"✅ Order Response: {resp}")
+        except Exception as e:
+            st.error(f"Order failed: {e}")
