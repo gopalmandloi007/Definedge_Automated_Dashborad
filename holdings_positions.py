@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 from utils import integrate_get
+from utils import integrate_post
 
 def app():
     st.header("Positions & Holdings")
