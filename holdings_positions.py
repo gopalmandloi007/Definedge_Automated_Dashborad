@@ -3,72 +3,93 @@ import pandas as pd
 from utils import integrate_get
 
 def app():
-    st.header("📊 Holdings & Positions Tracker")
-    st.markdown(
-        """
-        <style>
-        .big-font {font-size:26px !important;}
-        .metric-box {background: #fafaff; border-radius: 12px; box-shadow: 1px 1px 8px #eee; padding: 22px;}
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
+    st.header("📊 Holdings & Positions Tracker (Debug Mode)")
 
-    # --- Fetch Holdings ---
+    # --- Fetch Holdings API ---
     holdings_resp = integrate_get("/holdings")
-    holdings = holdings_resp.get("data", []) if holdings_resp and holdings_resp.get("status") == "SUCCESS" else []
+    st.write("DEBUG: Raw /holdings API response:", holdings_resp)
 
-    # --- Fetch Positions ---
-    positions_resp = integrate_get("/positions")
-    positions = positions_resp.get("positions", []) if positions_resp and positions_resp.get("status") == "SUCCESS" else []
+    # Safety: Check API response shape
+    holdings = []
+    if holdings_resp and isinstance(holdings_resp, dict):
+        # Some brokers use "data", some use "holdings", some "result"
+        for key in ("data", "holdings", "result"):
+            if isinstance(holdings_resp.get(key), list):
+                holdings = holdings_resp.get(key, [])
+                break
 
-    # --- Holdings Table ---
-    st.subheader("💼 Current Holdings")
-    if holdings:
-        holdings_df = pd.DataFrame([
-            {
-                "Symbol": h["tradingsymbol"][0]["tradingsymbol"] if h.get("tradingsymbol") else "",
-                "Exchange": h["tradingsymbol"][0]["exchange"] if h.get("tradingsymbol") else "",
-                "ISIN": h["tradingsymbol"][0].get("isin", ""),
-                "DP Qty": int(h.get("dp_qty", 0)),
-                "T1 Qty": int(h.get("t1_qty", 0)),
-                "Avg. Buy Price": float(h.get("avg_buy_price", 0)),
-                "Current Value": (int(h.get("dp_qty", 0)) + int(h.get("t1_qty", 0))) * float(h.get("avg_buy_price", 0))
-            }
-            for h in holdings
-        ])
-        st.dataframe(holdings_df.style.format({"Avg. Buy Price": "{:.2f}", "Current Value": "{:.2f}"}))
-    else:
-        st.info("No holdings found.")
-        holdings_df = pd.DataFrame(columns=["Symbol", "Exchange", "ISIN", "DP Qty", "T1 Qty", "Avg. Buy Price", "Current Value"])
+    st.write(f"DEBUG: Found {len(holdings)} holdings in API response.")
 
-    # --- Positions Table ---
-    st.subheader("📈 Open Positions")
-    if positions:
-        positions_df = pd.DataFrame([
-            {
-                "Symbol": p.get("tradingsymbol", ""),
-                "Exchange": p.get("exchange", ""),
-                "Product": p.get("product_type", ""),
-                "Net Qty": int(p.get("net_quantity", 0)),
-                "Net Avg": float(p.get("net_averageprice", 0)),
-                "Realized P&L": float(p.get("realized_pnl", 0)),
-                "Unrealized P&L": float(p.get("unrealized_pnl", 0)),
-            }
-            for p in positions
-        ])
-        st.dataframe(positions_df.style.format({"Net Avg": "{:.2f}", "Realized P&L": "{:.2f}", "Unrealized P&L": "{:.2f}"}))
-    else:
-        st.info("No open positions found.")
-        positions_df = pd.DataFrame(columns=["Symbol", "Exchange", "Product", "Net Qty", "Net Avg", "Realized P&L", "Unrealized P&L"])
+    if not holdings:
+        st.error("No holdings found. Check the debug output above for API errors or session issues!")
+        return
 
-    # --- Summary Cards ---
+    # --- Make DataFrame from all raw records (minimal columns) ---
+    # Handles both old and new API structures
+    rows = []
+    for h in holdings:
+        # Try to extract a symbol. Sometimes tradingsymbol is a list of dicts, sometimes a string.
+        ts = h.get("tradingsymbol")
+        if isinstance(ts, list) and ts and isinstance(ts[0], dict):
+            symbol = ts[0].get("tradingsymbol", "")
+            exchange = ts[0].get("exchange", h.get("exchange", ""))
+            isin = ts[0].get("isin", h.get("isin", ""))
+        elif isinstance(ts, dict):
+            symbol = ts.get("tradingsymbol", "")
+            exchange = ts.get("exchange", h.get("exchange", ""))
+            isin = ts.get("isin", h.get("isin", ""))
+        else:
+            symbol = ts if ts else h.get("symbol", "")
+            exchange = h.get("exchange", "")
+            isin = h.get("isin", "")
+
+        qty = h.get("dp_qty", 0)
+        t1_qty = h.get("t1_qty", 0)
+        avg_buy_price = h.get("avg_buy_price", 0)
+
+        try:
+            qty = float(qty)
+        except Exception:
+            qty = 0.0
+        try:
+            t1_qty = float(t1_qty)
+        except Exception:
+            t1_qty = 0.0
+        try:
+            avg_buy_price = float(avg_buy_price)
+        except Exception:
+            avg_buy_price = 0.0
+
+        current_value = (qty + t1_qty) * avg_buy_price
+
+        rows.append({
+            "Symbol": symbol,
+            "Exchange": exchange,
+            "ISIN": isin,
+            "DP Qty": qty,
+            "T1 Qty": t1_qty,
+            "Avg. Buy Price": avg_buy_price,
+            "Current Value": current_value
+        })
+
+    holdings_df = pd.DataFrame(rows)
+    st.write("DEBUG: Holdings DataFrame preview:", holdings_df)
+
+    if holdings_df.empty:
+        st.error("No valid holdings records found after processing API data.")
+        return
+
+    # Show DataFrame
+    st.dataframe(holdings_df)
+
+    # Summary metrics
+    st.subheader("Summary")
     col1, col2, col3 = st.columns(3)
-    col1.markdown(f'<div class="metric-box big-font">💰 Holdings Value<br><b>₹ {holdings_df["Current Value"].sum():,.2f}</b></div>', unsafe_allow_html=True)
-    col2.markdown(f'<div class="metric-box big-font">📈 Realized P&L<br><b>₹ {positions_df["Realized P&L"].sum():,.2f}</b></div>', unsafe_allow_html=True)
-    col3.markdown(f'<div class="metric-box big-font">📊 Holdings Count<br><b>{len(holdings_df)}</b></div>', unsafe_allow_html=True)
+    col1.metric("Total Holdings Value", f"₹ {holdings_df['Current Value'].sum():,.2f}")
+    col2.metric("Total Holdings Count", len(holdings_df))
+    col3.metric("Total DP Qty", holdings_df["DP Qty"].sum())
 
-    # --- Download Buttons ---
-    st.markdown("---")
-    st.download_button("Download Holdings CSV", holdings_df.to_csv(index=False), "holdings.csv")
-    st.download_button("Download Positions CSV", positions_df.to_csv(index=False), "positions.csv")
+    st.success("✅ Please copy the full DEBUG API outputs above and share them with your helper if issues persist.")
+
+    # Download for manual review
+    st.download_button("Download Holdings (CSV)", holdings_df.to_csv(index=False), "holdings_debug.csv")
