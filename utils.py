@@ -1,7 +1,7 @@
 import streamlit as st
 import requests
 import os
-from debug_log import debug_log
+from debug_utils import debug_log
 
 def get_session_headers():
     session = st.session_state.get("integrate_session")
