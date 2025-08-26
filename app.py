@@ -9,7 +9,7 @@ st.set_page_config(page_title="Gopal Mandloi Dashboard", layout="wide")
 st.title("Gopal Mandloi Integrate Autobot (Automated Mode)")
 
 # --- SESSION GATEKEEPER ---
-session = session_utils.get_active_session()
+session = session_utils.get_active_io()
 if "authenticated" not in st.session_state or not st.session_state.get("authenticated", False):
     login_page()
     st.stop()
