@@ -1,4 +1,3 @@
-# app.py
 import streamlit as st
 import importlib
 import session_utils
@@ -19,8 +18,6 @@ st.success("Session active! All API calls are automated.")
 # --- PAGES DICTIONARY ---
 PAGES = {
     "Holdings": "holdings",
-    "Debug": "debug_utils",
-    "Portfolio": "holdings_positions",
     "Holdings Details": "holdings_details",
     "Positions": "positions",
     "Order Book": "orderbook",
