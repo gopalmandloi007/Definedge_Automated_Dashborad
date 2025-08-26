@@ -110,3 +110,8 @@ else:
             )
     except ModuleNotFoundError as e:
         st.error(f"Module `{PAGES[selected_page]}` not found. Please check your file/module names.\n\nError: {e}")
+
+                "def app():\n    # your streamlit code here"
+            )
+    except ModuleNotFoundError as e:
+        st.error(f"Module `{PAGES[selected_page]}` not found. Please check your file/module names.\n\nError: {e}")
