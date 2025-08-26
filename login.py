@@ -9,7 +9,7 @@ def login_page():
     otp = st.text_input("OTP", type="password")
 
     if st.button("Login"):
-        conn = session_utils.get_active_io()
+        conn = session_utils.get_active_session()
         try:
             # Step 1
             resp1 = conn.login_step1(api_token, api_secret)
