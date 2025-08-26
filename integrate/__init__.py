@@ -10,9 +10,6 @@ class ConnectToIntegrate:
         self.otp_token: Optional[str] = None
 
     def login_step1(self, api_token: str, api_secret: str) -> Dict[str, Any]:
-        """
-        Step 1: Initiate login, receive OTP token.
-        """
         url = f"https://signin.definedgesecurities.com/auth/realms/debroking/dsbpkc/login/{api_token}"
         headers = {"api_secret": api_secret}
         resp = requests.get(url, headers=headers, timeout=20)
@@ -22,9 +19,6 @@ class ConnectToIntegrate:
         return data
 
     def login_step2(self, otp: str) -> Dict[str, Any]:
-        """
-        Step 2: Submit OTP, receive session keys.
-        """
         if not self.otp_token:
             raise RuntimeError("No otp_token found. Run login_step1 first.")
         url = "https://signin.definedgesecurities.com/auth/realms/debroking/dsbpkc/token"
@@ -32,10 +26,10 @@ class ConnectToIntegrate:
         resp = requests.post(url, json=payload, timeout=20)
         resp.raise_for_status()
         data = resp.json()
-        print("DEBUG: login_step2 response:", data)  # Debug print for troubleshooting
+        print("DEBUG: login_step2 response:", data)
         self.uid = data.get("uid")
         self.actid = data.get("actid")
-        self.api_session_key = data.get("session_key")
+        self.api_session_key = data.get("api_session_key")    # <-- FIXED
         self.ws_session_key = data.get("susertoken")
         return data
 
@@ -55,9 +49,6 @@ class ConnectToIntegrate:
 
 
 class IntegrateOrders:
-    """
-    Wrapper for Definedge trading API endpoints.
-    """
     def __init__(self, conn: ConnectToIntegrate, base_url: str = "https://integrate.definedgesecurities.com/dart/v1"):
         self.conn = conn
         self.base_url = base_url.rstrip("/")
@@ -93,5 +84,3 @@ class IntegrateOrders:
         r = requests.get(url, headers=self._headers(), timeout=20)
         r.raise_for_status()
         return r.json()
-
-    # Add more endpoint wrappers as needed for your broker API.
