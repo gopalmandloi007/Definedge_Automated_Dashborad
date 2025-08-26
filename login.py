@@ -46,7 +46,7 @@ def login_page():
             if len(pin) == 4 and pin.isalnum():
                 st.session_state["user_pin"] = pin
                 st.session_state["pin_entered"] = True
-                st.rerun()
+                st.experimental_rerun()
                 return
             else:
                 st.error("Invalid PIN. Please enter exactly 4 alphanumeric characters.")
