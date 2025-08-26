@@ -4,7 +4,7 @@ from integrate import ConnectToIntegrate
 
 SESSION_FILE = "session.json"
 
-def get_active_io():
+def get_active_session():
     """
     Returns a ConnectToIntegrate object.
     If session.json exists, restore keys instead of re-login.
