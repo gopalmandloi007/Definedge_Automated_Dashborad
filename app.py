@@ -20,6 +20,8 @@ PAGES = {
     "Holdings": "holdings",
     "Holdings Details": "holdings_details",
     "Positions": "positions",
+    "Portfolio": "holdings_positions",
+    "Debug": "debug_utils",
     "Order Book": "orderbook",
     "Orders": "orders",
     "Order Manage": "order_manage",
