@@ -34,7 +34,7 @@ class ConnectToIntegrate:
         data = resp.json()
         self.uid = data.get("uid")
         self.actid = data.get("actid")
-        self.api_session_key = data.get("api_session_key")
+        self.api_session_key = data.get("session_key")
         self.ws_session_key = data.get("susertoken")
         return data
 
