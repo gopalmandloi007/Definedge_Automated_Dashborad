@@ -19,6 +19,7 @@ st.success("Session active! All API calls are automated.")
 # --- PAGES DICTIONARY ---
 PAGES = {
     "Holdings": "holdings",
+    "Debug": "debug_utils",
     "Portfolio": "holdings_positions",
     "Holdings Details": "holdings_details",
     "Positions": "positions",
