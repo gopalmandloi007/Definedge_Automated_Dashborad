@@ -1,36 +1,57 @@
-import json
+# session_utils.py
 import os
-from integrate import ConnectToIntegrate
+import json
+import time
+from datetime import datetime, timedelta
+from typing import Optional, Dict, Any
+
+from connector import ConnectToIntegrate, IntegrateOrders
 
 SESSION_FILE = "session.json"
+SESSION_TTL_SECONDS = int(23.5 * 3600)  # 23.5 hours
 
-def get_active_io():
-    """
-    Returns a ConnectToIntegrate object.
-    If session.json exists, restore keys instead of re-login.
-    """
-    conn = ConnectToIntegrate()
+def save_session_to_file(data: Dict[str, Any], path: str = SESSION_FILE):
+    data_copy = dict(data)
+    data_copy["_saved_at"] = int(time.time())
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(data_copy, f, indent=2)
+
+def load_session_from_file(path: str = SESSION_FILE) -> Optional[Dict[str, Any]]:
+    if not os.path.exists(path):
+        return None
+    with open(path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+    saved = data.get("_saved_at", 0)
+    if time.time() - saved > SESSION_TTL_SECONDS:
+        # expired
+        try:
+            os.remove(path)
+        except Exception:
+            pass
+        return None
+    return data
+
+def logout_session():
     if os.path.exists(SESSION_FILE):
-        with open(SESSION_FILE, "r") as f:
-            data = json.load(f)
-            conn.set_session_keys(
-                data.get("uid"),
-                data.get("actid"),
-                data.get("api_session_key"),
-                data.get("ws_session_key"),
-            )
-    return conn
+        try:
+            os.remove(SESSION_FILE)
+        except Exception:
+            pass
 
-def save_session(conn: ConnectToIntegrate):
+def get_active_session():
     """
-    Save session keys to disk (so OTP login not required every time).
+    Returns session dict or None.
     """
-    uid, actid, api_session_key, ws_session_key = conn.get_session_keys()
-    data = {
-        "uid": uid,
-        "actid": actid,
-        "api_session_key": api_session_key,
-        "ws_session_key": ws_session_key,
-    }
-    with open(SESSION_FILE, "w") as f:
-        json.dump(data, f)
+    return load_session_from_file()
+
+def get_active_io() -> IntegrateOrders:
+    """
+    Return an IntegrateOrders object wired with saved session keys.
+    Raises if no session saved.
+    """
+    s = load_session_from_file()
+    if not s:
+        raise RuntimeError("No active session found. Please login via login page.")
+    conn = ConnectToIntegrate()
+    conn.set_session_keys(uid=s.get("uid"), actid=s.get("actid"), api_session_key=s.get("api_session_key"), ws_session_key=s.get("ws_session_key"))
+    return IntegrateOrders(conn)
