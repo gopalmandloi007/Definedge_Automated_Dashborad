@@ -8,7 +8,7 @@ def get_session_headers():
     if not session:
         return {}
     return {
-        ""Authorization": f"Bearer {session['api_session_key']}", # Correctly formatted
+        "Authorization": f"Bearer {session['api_session_key']}", # Correctly formatted
         "actid": session["actid"],
         "uid": session["uid"]
     }
