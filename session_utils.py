@@ -3,7 +3,7 @@ import time
 import json
 import os
 from integrate import ConnectToIntegrate, IntegrateOrders
-from debug_utils import debug_log
+from debug_utils import debug_utils
 
 SESSION_KEY_NAME = "integrate_session"
 SESSION_FILE = "session.json"
