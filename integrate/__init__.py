@@ -32,6 +32,7 @@ class ConnectToIntegrate:
         resp = requests.post(url, json=payload, timeout=20)
         resp.raise_for_status()
         data = resp.json()
+        print("DEBUG: login_step2 response:", data)  # Debug print for troubleshooting
         self.uid = data.get("uid")
         self.actid = data.get("actid")
         self.api_session_key = data.get("session_key")
