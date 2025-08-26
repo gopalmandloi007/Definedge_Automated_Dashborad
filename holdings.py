@@ -1,4 +1,3 @@
-# holdings_details.py
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
@@ -15,12 +14,14 @@ def safe_float(val, default=0.0):
     except:
         return default
 
-# LTP प्राप्त करने के लिए integrate_get फ़ंक्शन का उपयोग करें
 def get_ltp(exchange, token):
     path = f"/quotes/{exchange}/{token}"
+    st.write(f"Fetching LTP for: {exchange}/{token}") # Add for debugging
     data = integrate_get(path)
+    st.write(f"API Response for LTP {token}: {data}") # Log the full response
     if data and data.get("status") == "SUCCESS":
         return safe_float(data.get("ltp", 0))
+    st.write(f"Failed to get LTP for {token}. Response status: {data.get('status', 'N/A')}")
     return 0.0
 
 def get_prev_close(exchange, token, api_key):
@@ -35,16 +36,22 @@ def get_prev_close(exchange, token, api_key):
             url = f"https://data.definedgesecurities.com/sds/history/{exchange}/{token}/day/{from_str}/{to_str}"
             headers = {"Authorization": api_key}
             try:
+                st.write(f"Fetching prev close URL: {url}")
                 resp = requests.get(url, headers=headers, timeout=6)
-                if resp.status_code == 200 and resp.text.strip():
+                resp.raise_for_status() # Raise HTTPError for bad responses (4xx or 5xx)
+                if resp.text.strip():
                     rows = resp.text.strip().split("\n")
                     if len(rows) >= 2:
                         prev_close = safe_float(rows[-2].split(",")[4])
                     elif len(rows) == 1:
                         prev_close = safe_float(rows[0].split(",")[4])
+                    st.write(f"Previous close found: {prev_close}")
                     break
-            except:
-                continue
+                else:
+                    st.write(f"API response empty for {token} on {prev_day}")
+            except requests.exceptions.RequestException as e:
+                st.write(f"Error fetching prev close for {token} on {prev_day}: {e}")
+                continue # Skip this day if error
     return prev_close
 
 def resolve_symbol_info(h):
@@ -70,7 +77,6 @@ def app():
     st.title("Holdings Details Dashboard")
     st.caption("Detailed, real-time portfolio analytics and allocation")
 
-    # LTP के लिए api_key को सीधे get_ltp में पास करने की आवश्यकता नहीं है, क्योंकि यह integrate_get के माध्यम से लिया जाएगा।
     api_key_for_history = st.secrets.get("integrate_api_session_key", "")
 
     holdings_data = integrate_get("/holdings")
@@ -95,9 +101,8 @@ def app():
         avg_buy = safe_float(h.get("avg_buy_price",0))
         invested = qty * avg_buy
 
-        # get_ltp को सही ढंग से कॉल करें
-        ltp = get_ltp(exchange, token)
-        prev_close = get_prev_close(exchange, token, api_key_for_history)
+        ltp = get_ltp(exchange, token) # Call get_ltp for LTP
+        prev_close = get_prev_close(exchange, token, api_key_for_history) # Call get_prev_close
         current_value = qty * ltp
         today_pnl = qty * (ltp - prev_close) if prev_close else 0
         overall_pnl = qty * (ltp - avg_buy) if avg_buy else 0
@@ -143,7 +148,7 @@ def app():
     st.subheader("Portfolio Allocation")
     pie_df = pd.concat([
         df[["Symbol","Invested"]],
-        pd.DataFrame([{"Symbol":"Cash in Hand","Invested":cash_in_hand}])
+        pd_DataFrame([{"Symbol":"Cash in Hand","Invested":cash_in_hand}])
     ], ignore_index=True)
     fig = go.Figure(data=[go.Pie(labels=pie_df["Symbol"], values=pie_df["Invested"], hole=0.3)])
     fig.update_traces(textinfo='label+percent')
@@ -155,11 +160,6 @@ def app():
         .format({"Avg Buy":"{:.2f}", "LTP":"{:.2f}", "Prev Close":"{:.2f}",
                  "Invested":"{:.2f}", "Current Value":"{:.2f}",
                  "Today P&L":"{:.2f}", "Overall P&L":"{:.2f}",
-                 "Realized P&L":"{:.2f}", "Portfolio %":"{:.2f}"})
-        , use_container_width=True
+                 "Realized P&L":"{:.2f}
+        })
     )
-
-    st.caption("**Note:** All calculations are live. Realized P&L is fetched from Positions API. Cash in hand based on default total capital.")
-
-if __name__=="__main__":
-    app()
