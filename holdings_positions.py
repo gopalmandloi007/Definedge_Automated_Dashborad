@@ -19,6 +19,7 @@ def app():
     st.subheader("Holdings")
     try:
         data = integrate_get("/holdings")
+        headers = {"Authorization": api_session_key}
         holdings = data.get("holdings", [])
         if holdings:
             st.dataframe(pd.DataFrame(holdings))
