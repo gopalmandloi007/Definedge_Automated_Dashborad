@@ -15,16 +15,12 @@ def safe_float(val, default=0.0):
     except:
         return default
 
-def get_ltp(exchange, token, api_key):
-    url = f"https://integrate.definedgesecurities.com/dart/v1/quotes/{exchange}/{token}"
-    headers = {"Authorization": api_key}
-    try:
-        resp = requests.get(url, headers=headers, timeout=5)
-        if resp.status_code == 200:
-            data = resp.json()
-            return safe_float(data.get("ltp", 0))
-    except:
-        pass
+# LTP प्राप्त करने के लिए integrate_get फ़ंक्शन का उपयोग करें
+def get_ltp(exchange, token):
+    path = f"/quotes/{exchange}/{token}"
+    data = integrate_get(path)
+    if data and data.get("status") == "SUCCESS":
+        return safe_float(data.get("ltp", 0))
     return 0.0
 
 def get_prev_close(exchange, token, api_key):
@@ -55,7 +51,7 @@ def resolve_symbol_info(h):
     tslist = h.get("tradingsymbol")
     if isinstance(tslist, list):
         for s in tslist:
-            if isinstance(s.get("exchange", "").upper(), str) == "NSE":
+            if s.get("exchange", "").upper() == "NSE":
                 return s
         return tslist[0] if tslist else {}
     elif isinstance(tslist, dict):
@@ -74,7 +70,8 @@ def app():
     st.title("Holdings Details Dashboard")
     st.caption("Detailed, real-time portfolio analytics and allocation")
 
-    api_key = st.secrets.get("integrate_api_session_key", "")
+    # LTP के लिए api_key को सीधे get_ltp में पास करने की आवश्यकता नहीं है, क्योंकि यह integrate_get के माध्यम से लिया जाएगा।
+    api_key_for_history = st.secrets.get("integrate_api_session_key", "")
 
     holdings_data = integrate_get("/holdings")
     holdings = holdings_data.get("data", [])
@@ -98,8 +95,9 @@ def app():
         avg_buy = safe_float(h.get("avg_buy_price",0))
         invested = qty * avg_buy
 
-        ltp = get_ltp(exchange, token, api_key)
-        prev_close = get_prev_close(exchange, token, api_key)
+        # get_ltp को सही ढंग से कॉल करें
+        ltp = get_ltp(exchange, token)
+        prev_close = get_prev_close(exchange, token, api_key_for_history)
         current_value = qty * ltp
         today_pnl = qty * (ltp - prev_close) if prev_close else 0
         overall_pnl = qty * (ltp - avg_buy) if avg_buy else 0
