@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 from utils import get_session_headers, integrate_get
+from debug_log import debug_log
 
 def app():
     st.header("🛠️ Advanced Debug Page")
