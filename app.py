@@ -1,3 +1,4 @@
+# app.py
 import streamlit as st
 import importlib
 import session_utils
@@ -15,7 +16,7 @@ if "authenticated" not in st.session_state or not st.session_state.get("authenti
 
 st.success("Session active! All API calls are automated.")
 
-# --- PAGES DICTIONARY ---
+# --- AVAILABLE PAGES ---
 PAGES = {
     "Holdings": "holdings",
     "Holdings Details": "holdings_details",
@@ -34,13 +35,13 @@ PAGES = {
     "Batch Symbol Scanner": "definedge_batch_scan",
     "Candlestick Demo": "simple_chart_demo",
     "Tradebot": "tradebot",
-    "Historical Manager": "historical_page",
+    "Historical Manager": "historical_page",  # Special UI handled inline below
 }
 
 # --- PAGE SELECTION ---
 selected_page = st.sidebar.selectbox("Select Page", list(PAGES.keys()))
 
-# --- INTEGRATE IO OBJECT ---
+# --- INTEGRATE OBJECT ---
 try:
     io = session_utils.get_active_io()
     st.session_state["integrate_io"] = io
@@ -48,7 +49,7 @@ except Exception as e:
     st.error("Cannot build Integrate IO object: " + str(e))
     st.stop()
 
-# --- HISTORICAL MANAGER PAGE ---
+# --- SPECIAL INLINE PAGE: Historical Manager ---
 if selected_page == "Historical Manager":
     st.header("Historical Data Manager")
     from masterfile_handler import batch_symbols
@@ -60,52 +61,45 @@ if selected_page == "Historical Manager":
     timeframe = st.selectbox("Timeframe", ["day", "minute"])
     start_date = st.text_input("Start date (ddMMyyyy or ddMMyyyyHHMM)", "01012020")
 
-    def run_historical_batch():
-        done = 0  # variable for nonlocal
+    if st.button("Run update for next batch (from master)"):
+        progress_bar = st.progress(0)
+        batch_iter = batch_symbols(seg, batch_size)
+        try:
+            first_batch = next(batch_iter)
+        except StopIteration:
+            st.info("No symbols found in master. Please download master first.")
+            first_batch = []
 
-        if st.button("Run update for next batch (from master)"):
-            progress_bar = st.progress(0)
-            batch_iter = batch_symbols(seg, batch_size)
-            try:
-                first_batch = next(batch_iter)
-            except StopIteration:
-                st.info("No symbols found in master. Please download master first.")
-                first_batch = []
+        if first_batch:
+            total = len(first_batch)
+            done = 0
 
-            if first_batch:
-                total = len(first_batch)
+            def progress_cb(token, idx, total_local, status, rows):
+                nonlocal done
+                done = idx
+                progress_bar.progress(min(1.0, done / total))
+                st.write(f"{idx}/{total} — token={token} status={status} rows={rows}")
 
-                def progress_cb(token, idx, total_local, status, rows):
-                    nonlocal done
-                    done = idx
-                    progress_bar.progress(min(1.0, done/total))
-                    st.write(f"{idx}/{total} — token={token} status={status} rows={rows}")
-
-                results = update_all_from_master(
-                    session_key,
-                    master_segment=seg,
-                    batch_size=batch_size,
-                    timeframe=timeframe,
-                    start_date=start_date,
-                    sleep_per=0.06,
-                    progress=progress_cb
-                )
-                st.success("Batch update requested (check logs above).")
-
-    run_historical_batch()
-
-# --- LOAD OTHER PAGES DYNAMICALLY ---
+            results = update_all_from_master(
+                session_key,
+                master_segment=seg,
+                batch_size=batch_size,
+                timeframe=timeframe,
+                start_date=start_date,
+                sleep_per=0.06,
+                progress=progress_cb
+            )
+            st.success("Batch update requested (check logs above).")
 else:
+    # --- DYNAMIC PAGE LOADER ---
     try:
         page_module = importlib.import_module(PAGES[selected_page])
         if hasattr(page_module, "app"):
             page_module.app()
         else:
             st.error(
-                f"The page `{selected_page}` does not have an app() function.\n\n"
-                "Please make sure your page file defines a function called app().\n"
-                "Example:\n"
-                "def app():\n    # your streamlit code here"
+                f"The page `{selected_page}` does not have an app() function.\n"
+                "Please make sure your page file defines a function called app()."
             )
     except ModuleNotFoundError as e:
-        st.error(f"Module `{PAGES[selected_page]}` not found. Please check your file/module names.\n\nError: {e}")
+        st.error(f"Module `{PAGES[selected_page]}` not found. Please check your file/module names.\nError: {e}")
